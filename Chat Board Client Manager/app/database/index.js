@@ -3,8 +3,8 @@
 var config = require('../config')
 var Mongoose = require('mongoose')
 
-let dbUser = process.env.DB_USER || ((config.db.username) ? encodeURIComponent(config.db.username) + ':' : '')
-let dbPassword = process.env.DB_PASS || ((config.db.password) ? encodeURIComponent(config.db.password) + '@' : '')
+let dbUser = ((process.env.DB_USER) ? encodeURIComponent(process.env.DB_USER) + ':' : '')  || ((config.db.username) ? encodeURIComponent(config.db.username) + ':' : '')
+let dbPassword = ((process.env.DB_PASS) ? encodeURIComponent(process.env.DB_PASS) + '@' : '') || ((config.db.password) ? encodeURIComponent(config.db.password) + '@' : '')
 let dbHost = process.env.DB_HOST || config.db.host
 let dbPort = process.env.DB_PORT || config.db.port
 let dbName = process.env.DB_NAME || config.db.name
@@ -12,11 +12,13 @@ let dbName = process.env.DB_NAME || config.db.name
 // Connect to the database
 // construct the database URI and encode username and password.
 var dbURI = 'mongodb://' +
-			dbUser +
-			dbPassword +
+			//dbUser +
+			//dbPassword +
 			dbHost + ':' +
 			dbPort + '/' +
 			dbName
+
+console.log(dbURI);
 
 Mongoose.connect(dbURI)
 
