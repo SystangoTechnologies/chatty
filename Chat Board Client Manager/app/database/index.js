@@ -12,11 +12,11 @@ let dbName = process.env.DB_NAME || config.db.name
 // Connect to the database
 // construct the database URI and encode username and password.
 var dbURI = 'mongodb://' +
-			//dbUser +
-			//dbPassword +
+			dbUser +
+			dbPassword +
 			dbHost + ':' +
 			dbPort + '/' +
-			dbName
+			dbName + '?authSource=admin'
 
 console.log(dbURI);
 

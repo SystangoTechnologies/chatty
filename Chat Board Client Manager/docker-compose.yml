@@ -11,7 +11,21 @@ services:
       - DB_USER=${DB_USER}
       - DB_PASS=${DB_PASS}
       - DB_HOST=${DB_HOST}
-      - DB_PORT={DB_PORT}
-      - DB_PORT={DB_NAME}
-      - DEFAULT_CHATSERVER={DEFAULT_CHATSERVER}
-    command: forever start server.js
+      - DB_PORT=${DB_PORT}
+      - DB_NAME=${DB_NAME}
+      - DEFAULT_CHATSERVER=${DEFAULT_CHATSERVER}
+    command: npm start
+    depends_on:
+      - mongo-db
+  mongo-db:
+    container_name: mongo
+    image: mongo
+    environment:
+      # provide your credentials here
+      - MONGO_INITDB_ROOT_USERNAME=${DB_USER}
+      - MONGO_INITDB_ROOT_PASSWORD=${DB_PASS}
+    command: mongod
+    volumes:
+      - ./data:/data/db
+    ports:
+      - "27017:27017"
