@@ -50,6 +50,8 @@ var ioEvents = function (io) {
       // Adding user name to activeUser Map
       activeUsers.set(user.username.toLowerCase(), socket)
 
+      socket.emit('connected')
+
       // Emit active user list
       socket.emit('activeUsersList', Array.from(activeUsers.keys()))
       socket.broadcast.emit('activeUsersList', Array.from(activeUsers.keys()))
