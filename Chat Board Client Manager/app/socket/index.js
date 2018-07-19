@@ -25,10 +25,10 @@ var ioEvents = function (io) {
         io.redisCache.hdel(socket.nsp.name, user.username.toLowerCase())
 
         // Get all active users
-        io.redisCache.hkeys(socket.nsp.name, function (_err, _activeUsers) {
-          socket.emit('activeUsersList', _activeUsers)
-          io.emit('activeUsersList', _activeUsers)
-        })
+        let activeUsersName = await getActiveUsersName()
+
+        socket.emit('activeUsersList', activeUsersName)
+        io.emit('activeUsersList', activeUsersName)
       }
     })
 
@@ -40,16 +40,14 @@ var ioEvents = function (io) {
       socket.request.session.user = user
 
       // Adding username and its socket.id for active user list
-      io.redisCache.hset(socket.nsp.name, user.username.toLowerCase(), socket.id)
+      io.redisCache.hmset(socket.nsp.name, user.username.toLowerCase(), socket.id)
 
       socket.emit('connected')
 
-      // Get all active users
-      io.redisCache.hkeys(socket.nsp.name, function (_err, _activeUsers) {
-        // Emit active user list
-        socket.emit('activeUsersList', _activeUsers)
-        io.emit('activeUsersList', _activeUsers)
-      })
+      let activeUsersName = await getActiveUsersName()
+
+      socket.emit('activeUsersList', activeUsersName)
+      io.emit('activeUsersList', activeUsersName)
     })
 
     // WIP
@@ -123,6 +121,34 @@ var ioEvents = function (io) {
       // No need to emit 'addMessage' to the current socket
       socket.broadcast.to(socket.request.roomId).emit('addMessage', message)
     })
+
+    socket.on('typing', function (room) {
+    })
+
+    let activeUsers = function () {
+      return new Promise(function (resolve, reject) {
+        io.of(socket.nsp.name).adapter.clients((_err, clients) => {
+          resolve(clients) // an array containing all connected socket ids
+        })
+      })
+    }
+
+    let getActiveUsersName = function () {
+      return new Promise(function (resolve, reject) {
+        // Get all active users
+        io.redisCache.hgetall(socket.nsp.name, async function (_err, obj) {
+          let activeUsersSockets = await activeUsers()
+          // Emit active user list
+          let activeUsersName = []
+          for (var property1 in obj) {
+            if (activeUsersSockets.indexOf(obj[property1]) >= 0) {
+              activeUsersName.push(property1)
+            } // scope of if
+          } // scope of for
+          resolve(activeUsersName)
+        })
+      })
+    }
   })
 
   // WIP
