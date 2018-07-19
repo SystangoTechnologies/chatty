@@ -6,8 +6,6 @@ var Room = require('../models/room')
 
 var User = require('../models/user')
 
-var activeUsers = new Map()
-
 /**
  * Encapsulates all code for emitting and listening to socket events
  *
@@ -54,6 +52,7 @@ var ioEvents = function (io) {
       })
     })
 
+    // WIP
     // socket.on('initChat', async function (usersArray) {
     //   let tempArray = usersArray
     //   tempArray.push(socket.request.session.user.username)
@@ -72,7 +71,7 @@ var ioEvents = function (io) {
     data = {
       peername: 'XYZ'
     } */
-    socket.on('initChat', async function (data) {
+    socket.on('initOneToOneChat', async function (data) {
       let currentUser = socket.request.session.user.username
       // creating room by concating usernames in lexicographically order
       let roomname = (currentUser > data.peername) ? (data.peername + '_' + currentUser) : (currentUser + '_' + data.peername)
@@ -88,11 +87,13 @@ var ioEvents = function (io) {
       roomname: 'XYZ'
     } */
     socket.on('enterRoom', async function (title) {
+      // First find the room
       Room.findOne({
         'title': new RegExp('^' + title + '$', 'i')
       }, function (err, room) {
         if (err) throw err
         if (room) {
+          // Adding user to the room
           Room.addUser(room, socket, function (_err, newRoom) {
             socket.join(newRoom.id)
             socket.request.roomId = newRoom.id
@@ -100,12 +101,13 @@ var ioEvents = function (io) {
           })
           socket.request.room = title
         } else {
+          // Creating the new room
           Room.create({
             title: title
           }, function (err, newRoom) {
             if (err) throw err
             socket.request.room = title
-
+            // Adding user to the room
             Room.addUser(newRoom, socket, function (_err, newRoom) {
               socket.request.roomId = newRoom.id
               socket.join(newRoom.id)
@@ -119,39 +121,36 @@ var ioEvents = function (io) {
     // When a new message arrives
     socket.on('newMessage', function (message) {
       // No need to emit 'addMessage' to the current socket
-      // As the new message will be added manually in 'main.js' file
-      // socket.emit('addMessage', message);
-
-      // socket.broadcast.to(socket.request.roomId).emit('addMessage', message);
       socket.broadcast.to(socket.request.roomId).emit('addMessage', message)
     })
   })
 
-  io.of('/chat').on('connection', function (socket) {
-    // When a socket exits
-    socket.on('disconnect', function () {
-      // Check if user exists in the session
-      if (socket.request.session.user == null) {
-        return
-      }
+  // WIP
+  // io.of('/chat').on('connection', function (socket) {
+  //   // When a socket exits
+  //   socket.on('disconnect', function () {
+  //     // Check if user exists in the session
+  //     if (socket.request.session.user == null) {
+  //       return
+  //     }
 
-      // Find the room to which the socket is connected to,
-      // and remove the current user + socket from this room
-      // let userId = socket.request.session.user.id
-      Room.removeUser(socket, function (err, room, _userId, _cuntUserInRoom) {
-        if (err) throw err
+  //     // Find the room to which the socket is connected to,
+  //     // and remove the current user + socket from this room
+  //     // let userId = socket.request.session.user.id
+  //     Room.removeUser(socket, function (err, room, _userId, _cuntUserInRoom) {
+  //       if (err) throw err
 
-        // Leave the room channel
-        socket.leave(room.id)
+  //       // Leave the room channel
+  //       socket.leave(room.id)
 
-        // Return the user id ONLY if the user was connected to the current room using one socket
-        // The user id will be then used to remove the user from users list on chatroom page
-        // if (cuntUserInRoom === 1) {
-        // socket.broadcast.to(room.id).emit('removeUser', userId);
-        // }
-      })
-    })
-  })
+  //       // Return the user id ONLY if the user was connected to the current room using one socket
+  //       // The user id will be then used to remove the user from users list on chatroom page
+  //       // if (cuntUserInRoom === 1) {
+  //       // socket.broadcast.to(room.id).emit('removeUser', userId);
+  //       // }
+  //     })
+  //   })
+  // })
 }
 
 /**
@@ -172,8 +171,6 @@ var init = function (app) {
   const pub = redis.createClient(port, host, { auth_pass: password })
   const sub = redis.createClient(port, host, { auth_pass: password })
   const redisCache = redis.createClient(port, host, { auth_pass: password })
-
-  // client = Promise.promisifyAll(redis.createClient())
 
   io.adapter(redisAdapter({ pubClient: pub, subClient: sub }))
 
