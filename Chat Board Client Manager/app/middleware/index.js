@@ -3,24 +3,20 @@
 var User = require('../models/user')
 
 exports.authenicateUser = async function (userName, socketId) {
-  return new Promise(function (resolve, reject) {
-    try {
-      User.findOneAndUpdate({username: new RegExp(userName, 'i')}, {status: 'online', socketId: socketId}, {new: true}, function (err, user) {
-        if (err) { reject(err) }
+  try {
+    let user = await User.findOneAndUpdate({username: new RegExp(userName, 'i')}, {status: 'online', socketId: socketId}, {new: true})
 
-        if (!user) {
-          User.create({ username: userName }, function (err, newUser) {
-            console.log(err)
-            return resolve(newUser)
-          })
-        } else {
-          return resolve(user)
-        }
+    if (!user) {
+      User.create({ username: userName }, function (err, newUser) {
+        console.log(err)
+        return newUser
       })
-    } catch (err) {
-      return reject(err)
+    } else {
+      return user
     }
-  })
+  } catch (err) {
+    return err
+  }
 }
 
 // module.exports = init();

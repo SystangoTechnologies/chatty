@@ -38,8 +38,9 @@ var findOrCreate = function (data, callback) {
   })
 }
 
-var findOneAndUpdate = function (searchParam, updateParam, data, callback) {
-  userModel.findOneAndUpdate(searchParam, updateParam, { new: true }, callback)
+var findOneAndUpdate = async function (searchParam, updateParam, _data) {
+  let user = await userModel.findOneAndUpdate(searchParam, updateParam, { new: true })
+  return user
 }
 
 /**

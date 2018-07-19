@@ -8,10 +8,6 @@ var User = require('../models/user')
 
 var activeUsers = new Map()
 
-var chatServers = new Map()
-
-const defaultServer = process.env.DEFAULT_CHATSERVER || 'http://localhost:3000/chat'
-
 /**
  * Encapsulates all code for emitting and listening to socket events
  *
@@ -20,23 +16,21 @@ var ioEvents = function (io) {
   // Users namespace
   io.of('/users').on('connection', function (socket) {
     // It will detect the Socket disconnection, change the user's status in database and remove users from active list
-    socket.on('disconnect', function () {
+    socket.on('disconnect', async function () {
       if (socket.request.session.user) {
         let userId = (socket.request.session.user) ? socket.request.session.user.id : ''
 
         // Change user status
-        User.findOneAndUpdate({$or: [ {'_id': userId}, {'socketId': socket.id} ]}, {status: 'offline', socketId: ''}, {new: false}, function (err, _user) {
-          if (err) {
-            return err
-          }
+        let user = await User.findOneAndUpdate({$or: [ {'_id': userId}, {'socketId': socket.id} ]}, {status: 'offline', socketId: ''}, {new: false}) //, function (err, _user) {
+
+        // Delete user from active user list
+        io.redisCache.hdel(socket.nsp.name, user.username.toLowerCase())
+
+        // Get all active users
+        io.redisCache.hkeys(socket.nsp.name, function (_err, _activeUsers) {
+          socket.emit('activeUsersList', _activeUsers)
+          io.emit('activeUsersList', _activeUsers)
         })
-
-        // Remove user from active user map
-        activeUsers.delete(socket.request.session.user.username.toLowerCase())
-
-        // Emit
-        socket.emit('activeUsersList', Array.from(activeUsers.keys()))
-        socket.broadcast.emit('activeUsersList', Array.from(activeUsers.keys()))
       }
     })
 
@@ -47,49 +41,53 @@ var ioEvents = function (io) {
       // Adding user object to socket session
       socket.request.session.user = user
 
-      // Adding user name to activeUser Map
-      activeUsers.set(user.username.toLowerCase(), socket)
+      // Adding username and its socket.id for active user list
+      io.redisCache.hset(socket.nsp.name, user.username.toLowerCase(), socket.id)
 
       socket.emit('connected')
 
-      // Emit active user list
-      socket.emit('activeUsersList', Array.from(activeUsers.keys()))
-      socket.broadcast.emit('activeUsersList', Array.from(activeUsers.keys()))
-    })
-
-    socket.on('initChat', async function (usersArray) {
-      let tempArray = usersArray
-      tempArray.push(socket.request.session.user.username)
-
-      // WIP
-      // chatServers
-
-      let response = {
-        url: defaultServer,
-        roomName: tempArray.sort().join('_')
-      }
-
-      // Iterate the users list and send join request to the socket associted with the user array
-      usersArray.forEach(function (element) {
-        activeUsers.get(element).emit('roomConnection', response)
+      // Get all active users
+      io.redisCache.hkeys(socket.nsp.name, function (_err, _activeUsers) {
+        // Emit active user list
+        socket.emit('activeUsersList', _activeUsers)
+        io.emit('activeUsersList', _activeUsers)
       })
     })
-  })
 
-  io.of('/slave_servers').on('connection', function (socket) {
-    socket.on('registerIP', function (IP) {
-      chatServers.set(IP, 0)
+    // socket.on('initChat', async function (usersArray) {
+    //   let tempArray = usersArray
+    //   tempArray.push(socket.request.session.user.username)
+
+    //   let response = {
+    //     roomName: tempArray.sort().join('_')
+    //   }
+
+    //   // Iterate the users list and send join request to the socket associted with the user array
+    //   usersArray.forEach(function (element) {
+    //     activeUsers.get(element).emit('roomConnection', response)
+    //   })
+    // })
+
+    /* One to one chat with chat room provided by the server
+    data = {
+      peername: 'XYZ'
+    } */
+    socket.on('initChat', async function (data) {
+      let currentUser = socket.request.session.user.username
+      // creating room by concating usernames in lexicographically order
+      let roomname = (currentUser > data.peername) ? (data.peername + '_' + currentUser) : (currentUser + '_' + data.peername)
+
+      io.redisCache.hget(socket.nsp.name, data.peername.toLowerCase(), function (_err, socketId) {
+        socket.emit('roomConnection', roomname)
+        socket.broadcast.to(socketId).emit('roomConnection', roomname)
+      })
     })
-  })
 
-  io.of('/chat').on('connection', function (socket) {
-    socket.on('enterRoom', async function (username, title) {
-      // Login or SignUp user
-      let user = await middleware.authenicateUser(username, socket.id)
-
-      // Adding user object to socket session
-      socket.request.session.user = user
-
+    /* One to one chat with chat room provided by the server
+    data = {
+      roomname: 'XYZ'
+    } */
+    socket.on('enterRoom', async function (title) {
       Room.findOne({
         'title': new RegExp('^' + title + '$', 'i')
       }, function (err, room) {
@@ -127,7 +125,9 @@ var ioEvents = function (io) {
       // socket.broadcast.to(socket.request.roomId).emit('addMessage', message);
       socket.broadcast.to(socket.request.roomId).emit('addMessage', message)
     })
+  })
 
+  io.of('/chat').on('connection', function (socket) {
     // When a socket exits
     socket.on('disconnect', function () {
       // Check if user exists in the session
@@ -162,9 +162,27 @@ var ioEvents = function (io) {
 var init = function (app) {
   var server = require('http').Server(app)
   var io = require('socket.io')(server)
+  const redis = require('redis')
+  const redisAdapter = require('socket.io-redis')
+
+  const port = process.env.REDIS_PORT || 6379
+  const host = process.env.REDIS_HOST || 'localhost'
+  const password = process.env.REDIS_PASSWORD || 6379
+
+  const pub = redis.createClient(port, host, { auth_pass: password })
+  const sub = redis.createClient(port, host, { auth_pass: password })
+  const redisCache = redis.createClient(port, host, { auth_pass: password })
+
+  // client = Promise.promisifyAll(redis.createClient())
+
+  io.adapter(redisAdapter({ pubClient: pub, subClient: sub }))
+
+  io.redisCache = redisCache
 
   // Force Socket.io to ONLY use "websockets"; No Long Polling.
   io.set('transports', ['websocket'])
+
+  // io.adapter(redis({ host: '192.168.1.40', port: 6379 }))
 
   // Allow sockets to access session data
   io.use((socket, next) => {
