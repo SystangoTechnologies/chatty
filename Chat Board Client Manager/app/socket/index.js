@@ -28,7 +28,7 @@ var ioEvents = function (io) {
         let activeUsersName = await getActiveUsersName()
 
         socket.emit('activeUsersList', activeUsersName)
-        io.emit('activeUsersList', activeUsersName)
+        socket.broadcast.emit('activeUsersList', activeUsersName)
       }
     })
 
@@ -47,7 +47,7 @@ var ioEvents = function (io) {
       let activeUsersName = await getActiveUsersName()
 
       socket.emit('activeUsersList', activeUsersName)
-      io.emit('activeUsersList', activeUsersName)
+      socket.broadcast.emit('activeUsersList', activeUsersName)
     })
 
     // WIP
@@ -67,49 +67,60 @@ var ioEvents = function (io) {
 
     /* One to one chat with chat room provided by the server
     data = {
-      peername: 'XYZ'
+      peerName: 'XYZ'
     } */
     socket.on('initOneToOneChat', async function (data) {
       let currentUser = socket.request.session.user.username
       // creating room by concating usernames in lexicographically order
-      let roomname = (currentUser > data.peername) ? (data.peername + '_' + currentUser) : (currentUser + '_' + data.peername)
+      let roomname = (currentUser > data.peerName) ? (data.peerName + '_' + currentUser) : (currentUser + '_' + data.peerName)
 
-      io.redisCache.hget(socket.nsp.name, data.peername.toLowerCase(), function (_err, socketId) {
-        socket.emit('roomConnection', roomname)
-        socket.broadcast.to(socketId).emit('roomConnection', roomname)
+      io.redisCache.hget(socket.nsp.name, data.peerName.toLowerCase(), function (_err, socketId) {
+        let roomName = {
+          roomName: roomname
+        }
+        socket.emit('roomConnection', roomName)
+        socket.broadcast.to(socketId).emit('roomConnection', roomName)
       })
     })
 
     /* One to one chat with chat room provided by the server
     data = {
-      roomname: 'XYZ'
+      roomName: 'XYZ'
     } */
-    socket.on('enterRoom', async function (title) {
+    socket.on('enterRoom', async function (data) {
       // First find the room
       Room.findOne({
-        'title': new RegExp('^' + title + '$', 'i')
+        'title': new RegExp('^' + data.roomName + '$', 'i')
       }, function (err, room) {
         if (err) throw err
         if (room) {
           // Adding user to the room
           Room.addUser(room, socket, function (_err, newRoom) {
             socket.join(newRoom.id)
-            socket.request.roomId = newRoom.id
-            socket.emit('roomReady')
+            // socket.request.roomId = newRoom.id
+            let response = {
+              roomName: data.roomName,
+              roomId: newRoom.id
+            }
+            socket.emit('roomReady', response)
           })
-          socket.request.room = title
+          socket.request.room = data.roomName
         } else {
           // Creating the new room
           Room.create({
-            title: title
+            title: data.roomName
           }, function (err, newRoom) {
             if (err) throw err
-            socket.request.room = title
+            // socket.request.room = data.roomName
             // Adding user to the room
             Room.addUser(newRoom, socket, function (_err, newRoom) {
-              socket.request.roomId = newRoom.id
+              // socket.request.roomId = newRoom.id
               socket.join(newRoom.id)
-              socket.emit('roomReady')
+              let response = {
+                roomName: data.roomName,
+                roomId: newRoom.id
+              }
+              socket.emit('roomReady', response)
             })
           })
         }
@@ -117,9 +128,25 @@ var ioEvents = function (io) {
     })
 
     // When a new message arrives
-    socket.on('newMessage', function (message) {
+    /* data = {
+      roomName: 'XYZ',
+      roomId: '123',
+      type: 'text',
+      message: 'Hi!'
+    } */
+    socket.on('newMessage', function (data) {
+      if (!socket.request.session.user) {
+        return
+      }
+      let msg = {
+        roomName: data.roomName,
+        roomId: data.roomId,
+        sender: socket.request.session.user.username,
+        type: data.type,
+        message: data.message
+      }
       // No need to emit 'addMessage' to the current socket
-      socket.broadcast.to(socket.request.roomId).emit('addMessage', message)
+      socket.broadcast.to(data.roomId).emit('addMessage', msg)
     })
 
     socket.on('typing', function (room) {
