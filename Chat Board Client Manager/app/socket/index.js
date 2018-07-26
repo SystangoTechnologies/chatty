@@ -1,10 +1,8 @@
 'use strict'
 
-let middleware = require('../middleware')
+let serverName = 'ChatServer_server1'
 
-var Room = require('../models/room')
-
-var User = require('../models/user')
+let localActiveUsersMap = new Map()
 
 /**
  * Encapsulates all code for emitting and listening to socket events
@@ -16,13 +14,13 @@ var ioEvents = function (io) {
     // It will detect the Socket disconnection, change the user's status in database and remove users from active list
     socket.on('disconnect', async function () {
       if (socket.request.session.user) {
-        let userId = (socket.request.session.user) ? socket.request.session.user.id : ''
-
-        // Change user status
-        let user = await User.findOneAndUpdate({$or: [ {'_id': userId}, {'socketId': socket.id} ]}, {status: 'offline', socketId: ''}, {new: false}) //, function (err, _user) {
+        let userName = (socket.request.session.user) ? socket.request.session.user : ''
 
         // Delete user from active user list
-        io.redisCache.hdel(socket.nsp.name, user.username.toLowerCase())
+        io.redisCache.hdel('OnlineUsers', userName.toLowerCase())
+
+        // Delete user from localActiveUsersMap
+        localActiveUsersMap.delete(socket.request.session.user.toLowerCase())
 
         // Get all active users
         let activeUsersName = await getActiveUsersName()
@@ -32,15 +30,22 @@ var ioEvents = function (io) {
       }
     })
 
+    // Login or SignUp user
     socket.on('login', async function (userName) {
-      // Login or SignUp user
-      let user = await middleware.authenicateUser(userName, socket.id)
-
+      
       // Adding user object to socket session
-      socket.request.session.user = user
+      socket.request.session.user = userName
 
-      // Adding username and its socket.id for active user list
-      io.redisCache.hmset(socket.nsp.name, user.username.toLowerCase(), socket.id)
+      let userData = {
+        'serverName': serverName,
+        'heartBeat': Date.now()
+      }
+
+      // Adding username and its last active time on redis cache
+      io.redisCache.hmset('OnlineUsers', userName.toLowerCase(), JSON.stringify(userData))
+
+      // Adding user name to activeUserMap
+      localActiveUsersMap.set(userName.toLowerCase(), socket)
 
       socket.emit('connected')
 
@@ -50,160 +55,61 @@ var ioEvents = function (io) {
       socket.broadcast.emit('activeUsersList', activeUsersName)
     })
 
-    // WIP
-    // socket.on('initChat', async function (usersArray) {
-    //   let tempArray = usersArray
-    //   tempArray.push(socket.request.session.user.username)
+    socket.on('sendMessage', async function (data) {
+      // Set username through with the message was sent (sender)
+      data.from = this.request.session.user
 
-    //   let response = {
-    //     roomName: tempArray.sort().join('_')
-    //   }
-
-    //   // Iterate the users list and send join request to the socket associted with the user array
-    //   usersArray.forEach(function (element) {
-    //     activeUsers.get(element).emit('roomConnection', response)
-    //   })
-    // })
-
-    /* One to one chat with chat room provided by the server
-    data = {
-      peerName: 'XYZ'
-    } */
-    socket.on('initOneToOneChat', async function (data) {
-      let currentUser = socket.request.session.user.username
-      // creating room by concating usernames in lexicographically order
-      let roomname = (currentUser > data.peerName) ? (data.peerName + '_' + currentUser) : (currentUser + '_' + data.peerName)
-
-      io.redisCache.hget(socket.nsp.name, data.peerName.toLowerCase(), function (_err, socketId) {
-        let roomName = {
-          roomName: roomname
+      // Get the server name of the client (recipient)
+      io.redisCache.hget('OnlineUsers', data.to.toLowerCase(), async function (_err, obj) {
+        let message = {
+          event: 'addMessage',
+          from: data.from,
+          to: data.to,
+          message: data.message
         }
-        socket.emit('roomConnection', roomName)
-        socket.broadcast.to(socketId).emit('roomConnection', roomName)
-      })
-    })
+        let channelName = JSON.parse(obj).serverName
 
-    /* One to one chat with chat room provided by the server
-    data = {
-      roomName: 'XYZ'
-    } */
-    socket.on('enterRoom', async function (data) {
-      // First find the room
-      Room.findOne({
-        'title': new RegExp('^' + data.roomName + '$', 'i')
-      }, function (err, room) {
-        if (err) throw err
-        if (room) {
-          // Adding user to the room
-          Room.addUser(room, socket, function (_err, newRoom) {
-            socket.join(newRoom.id)
-            // socket.request.roomId = newRoom.id
-            let response = {
-              roomName: data.roomName,
-              roomId: newRoom.id
-            }
-            socket.emit('roomReady', response)
-          })
-          socket.request.room = data.roomName
+        // Check if recipient is connected to the current server
+        if (channelName === serverName) {
+          let tempSocket = localActiveUsersMap.get(data.to.toLowerCase())
+          if (tempSocket) {
+            // emit message directly to client
+            tempSocket.emit('addMessage', message)
+          }
         } else {
-          // Creating the new room
-          Room.create({
-            title: data.roomName
-          }, function (err, newRoom) {
-            if (err) throw err
-            // socket.request.room = data.roomName
-            // Adding user to the room
-            Room.addUser(newRoom, socket, function (_err, newRoom) {
-              // socket.request.roomId = newRoom.id
-              socket.join(newRoom.id)
-              let response = {
-                roomName: data.roomName,
-                roomId: newRoom.id
-              }
-              socket.emit('roomReady', response)
-            })
-          })
+          // publish message on the redis channel to specific server
+          io.redisPublishChannel.publish(channelName, JSON.stringify(message))
         }
       })
-    })
-
-    // When a new message arrives
-    /* data = {
-      roomName: 'XYZ',
-      roomId: '123',
-      type: 'text',
-      message: 'Hi!'
-    } */
-    socket.on('newMessage', function (data) {
-      if (!socket.request.session.user) {
-        return
-      }
-      let msg = {
-        roomName: data.roomName,
-        roomId: data.roomId,
-        sender: socket.request.session.user.username,
-        type: data.type,
-        message: data.message
-      }
-      // No need to emit 'addMessage' to the current socket
-      socket.broadcast.to(data.roomId).emit('addMessage', msg)
     })
 
     socket.on('typing', function (room) {
     })
 
-    let activeUsers = function () {
-      return new Promise(function (resolve, reject) {
-        io.of(socket.nsp.name).adapter.clients((_err, clients) => {
-          resolve(clients) // an array containing all connected socket ids
-        })
-      })
-    }
-
     let getActiveUsersName = function () {
       return new Promise(function (resolve, reject) {
         // Get all active users
-        io.redisCache.hgetall(socket.nsp.name, async function (_err, obj) {
-          let activeUsersSockets = await activeUsers()
-          // Emit active user list
+        io.redisCache.hgetall('OnlineUsers', async function (_err, users) {
           let activeUsersName = []
-          for (var property1 in obj) {
-            if (activeUsersSockets.indexOf(obj[property1]) >= 0) {
-              activeUsersName.push(property1)
-            } // scope of if
+          for (var element in users) {
+            activeUsersName.push(element)
           } // scope of for
+          // Active users
           resolve(activeUsersName)
         })
       })
     }
   })
 
-  // WIP
-  // io.of('/chat').on('connection', function (socket) {
-  //   // When a socket exits
-  //   socket.on('disconnect', function () {
-  //     // Check if user exists in the session
-  //     if (socket.request.session.user == null) {
-  //       return
-  //     }
+  // Receives messages published on redis for the client(recievers) connected to the current server
+  io.messageListener.on('message', function (channel, message) {
+    let socket = localActiveUsersMap.get(JSON.parse(message).to)
+    if (socket) {
+      socket.emit('addMessage', message)
+    }
+  })
 
-  //     // Find the room to which the socket is connected to,
-  //     // and remove the current user + socket from this room
-  //     // let userId = socket.request.session.user.id
-  //     Room.removeUser(socket, function (err, room, _userId, _cuntUserInRoom) {
-  //       if (err) throw err
-
-  //       // Leave the room channel
-  //       socket.leave(room.id)
-
-  //       // Return the user id ONLY if the user was connected to the current room using one socket
-  //       // The user id will be then used to remove the user from users list on chatroom page
-  //       // if (cuntUserInRoom === 1) {
-  //       // socket.broadcast.to(room.id).emit('removeUser', userId);
-  //       // }
-  //     })
-  //   })
-  // })
+  io.messageListener.subscribe(serverName)
 }
 
 /**
@@ -224,15 +130,20 @@ var init = function (app) {
   const pub = redis.createClient(port, host, { auth_pass: password })
   const sub = redis.createClient(port, host, { auth_pass: password })
   const redisCache = redis.createClient(port, host, { auth_pass: password })
+  const messageListener = redis.createClient(port, host, { auth_pass: password })
+  const redisPublishChannel = redis.createClient(port, host, { auth_pass: password })
 
   io.adapter(redisAdapter({ pubClient: pub, subClient: sub }))
 
   io.redisCache = redisCache
+  io.messageListener = messageListener
+  io.redisPublishChannel = redisPublishChannel
+
+  // WIP
+  io.redisCache.set(serverName, '', 'EX', 10)
 
   // Force Socket.io to ONLY use "websockets"; No Long Polling.
   io.set('transports', ['websocket'])
-
-  // io.adapter(redis({ host: '192.168.1.40', port: 6379 }))
 
   // Allow sockets to access session data
   io.use((socket, next) => {
