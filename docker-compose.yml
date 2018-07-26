@@ -1,0 +1,31 @@
+version: '2'
+services:
+  web:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/src/app
+    environment:
+      - PORT=3000
+      - DB_USER=root
+      - DB_PASS=rootpass
+      - DB_HOST=192.168.1.40
+      - DB_PORT=27018
+      - DB_NAME=ChatServer
+      - DEFAULT_CHATSERVER=http://192.168.1.40:3000/chat
+    command: forever server.js
+    depends_on:
+      - mongo-db
+  mongo-db:
+    container_name: mongo
+    image: mongo
+    environment:
+      # provide your credentials here
+      - MONGO_INITDB_ROOT_USERNAME=root
+      - MONGO_INITDB_ROOT_PASSWORD=rootpass
+    command: mongod
+    volumes:
+      - ./data:/data/db
+    ports:
+      - "27018:27017"

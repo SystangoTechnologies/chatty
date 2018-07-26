@@ -1,6 +1,6 @@
 'use strict'
 
-let serverName = 'ChatServer_server1'
+let serverName = process.env.SERVER_NAME || 'ChatServer_server1'
 
 let localActiveUsersMap = new Map()
 
@@ -13,14 +13,14 @@ var ioEvents = function (io) {
   io.of('/users').on('connection', function (socket) {
     // It will detect the Socket disconnection, change the user's status in database and remove users from active list
     socket.on('disconnect', async function () {
-      if (socket.request.session.user) {
-        let userName = (socket.request.session.user) ? socket.request.session.user : ''
+      if (socket.request.user) {
+        let userName = (socket.request.user) ? socket.request.user : ''
 
         // Delete user from active user list
         io.redisCache.hdel('OnlineUsers', userName.toLowerCase())
 
         // Delete user from localActiveUsersMap
-        localActiveUsersMap.delete(socket.request.session.user.toLowerCase())
+        localActiveUsersMap.delete(socket.request.user.toLowerCase())
 
         // Get all active users
         let activeUsersName = await getActiveUsersName()
@@ -34,7 +34,7 @@ var ioEvents = function (io) {
     socket.on('login', async function (userName) {
       
       // Adding user object to socket session
-      socket.request.session.user = userName
+      socket.request.user = userName
 
       let userData = {
         'serverName': serverName,
@@ -144,11 +144,6 @@ var init = function (app) {
 
   // Force Socket.io to ONLY use "websockets"; No Long Polling.
   io.set('transports', ['websocket'])
-
-  // Allow sockets to access session data
-  io.use((socket, next) => {
-    require('../session')(socket.request, {}, next)
-  })
 
   // Define all Events
   ioEvents(io)
