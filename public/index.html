@@ -1,0 +1,193 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Socket.IO chat</title>
+    <style>
+    </style>
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+
+    <link rel="stylesheet" href="style.css">
+    <link rel='stylesheet prefetch' href='https://maxcdn.bootstrapcdn.com/font-awesome/4.4.0/css/font-awesome.min.css'>
+
+    <!-- Optional JavaScript -->
+    <!-- jQuery first, then Popper.js, then Bootstrap JS -->
+    <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
+
+  </head>
+  <body>
+   	<br>
+   	<div class="container">
+   		<div class="alert alert-success" role="alert" id='login-success' style="display: none;"> Login Successful!!!! </div>
+   		<div class="alert alert-danger" role="alert" id='login-failed' style="display: none;">Invalid login!!! </div>
+
+	  	<div class="input-group input-group-sm mb-3">
+		  <div class="input-group-prepend">
+		    <span class="input-group-text" id="inputGroup-sizing-sm">Please enter username</span>
+		  </div>
+	  	  <input type="text" class="form-control" aria-label="Small" aria-describedby="inputGroup-sizing-sm" id="username">
+		</div>
+
+		<button type="button" class="btn btn-success" style="margin-left: 40%;" id="login_signup_btn">Login/SignUp</button>
+		<button type="button" class="btn btn-danger" style="margin-left: 40%; display:none;" id="logout_btn" >Logout</button>
+	</div>
+
+	 <div style=" float: right; margin-right:2%; display: none;" class="online-user-list">
+	 	<H2>Online Users</H2>
+	 	<div class="list-group">
+	  	</div>
+	 </div>
+	 
+	 <br>
+	 <br>
+   	<div id="message_area" style="margin-left: 18%; margin-right: 18%; display: none;" >
+   		<div id="chat-user-name" style="display: none"></div>
+   		<p class="lead chat-user"></p>
+	    <ul id="messages">
+	    </ul>
+	    <div class='user-is-typing'  style="display: none;"><i>user is typing .....<i></div>
+	    <div class="input-group mb-3" style="float: left; margin-left: 25%; max-width: 50%;">
+		  <input type="text" class="form-control msg-box" placeholder="Message" aria-label="Message" aria-describedby="basic-addon2">
+		  <div class="input-group-append">
+		    <button class="btn btn-outline-secondary send-msg" type="button">Send</button>
+		  </div>
+		</div>
+	</div>
+
+    <script src="https://cdn.socket.io/socket.io-1.2.0.js"></script>
+    <script src="https://code.jquery.com/jquery-1.11.1.js"></script>
+    <script>
+      $(function () {
+				// Enter IP/Dns on the server
+        var socket = io('http://localhost:3000/users', { transports: ['websocket'] });
+      	let username;
+      	let userLogedIn = false;
+
+      	 $(window).bind('beforeunload',function(){
+        	socket.disconnect();
+   		 });
+
+		$('#login_signup_btn').click(function()
+		{
+			username = $('#username').val();
+			if(/^[A-z]+$/.test(username)){
+				socket.emit('login', username);
+			} else {
+				$('#login-failed').show();
+				setTimeout(function(){ $('#login-failed').hide(); }, 1000);
+			}
+		});
+
+		socket.on('connected', function(){
+			$('#login-success').show();
+			$('#login_signup_btn').hide();
+			$('#logout_btn').show();
+			$('#message_area').show();
+			setTimeout(function(){ $('#login-success').hide(); }, 1000);
+
+		});
+
+		socket.on('disconnect', function(){
+			console.log('disconnect');
+		})
+
+		socket.on('activeUsersList', function(data){
+			
+			$('.online-user-list').show();
+			let html = ''
+			for(var user of data) {
+				if (user != username ){
+					html +=  `<div class="active-user-box"><li  class="list-group-item list-group-item-action active-user-list" id="${user}">${user}</li></div>`;
+					}
+	           
+	        }
+	        $('.list-group').html('');
+
+	        if(html === ''){ return; }
+	          $('.list-group').prepend(html);
+		});
+
+		$('#logout_btn').click(function()
+		{
+			socket.emit('disconnect');
+			socket.disconnect();
+			$('.online-user-list').hide();
+			$('#login_signup_btn').show();
+			$('#logout_btn').hide();
+			$('#message_area').hide();
+		});
+
+		$('.send-msg').click(function()
+		{
+			let text = $('.msg-box').val();
+			let toUser = $('#chat-user-name').text()
+			let data = {
+		        to: toUser,
+		        type: 'text',
+		        message: text
+		    }
+
+			$('.msg-box').val('');
+			$('#messages').append($('<li style="text-align: right;">').text(username + ' : ' + data.message));
+			socket.emit('sendMessage', data)
+
+		});
+
+		socket.on('addMessage', function(msg){
+	        console.log(msg);
+	        if(msg.type === 'text'){
+	        	 $('#messages').append($('<li>').text( msg.from + ' : ' + msg.message));
+          		window.scrollTo(0, document.body.scrollHeight);
+	        } else if(msg.type === 'isTyping'){
+	        	console.log('isTyping');
+	        	if(msg.from === $('#chat-user-name').text()){
+	        		$('.user-is-typing').show();
+	        	}
+	        } else if(msg.type === 'doneTyping'){
+	        	console.log('doneTyping');
+	        	if(msg.from === $('#chat-user-name').text()){
+	        		$('.user-is-typing').hide();
+	        	}
+	        } else {
+	        	console.log('else');
+	        }
+	    });
+
+		$(document).on('click','.active-user-list',function(){
+			$('#chat-user-name').text(this.id)
+			$('.chat-user').html('');
+			$('#messages').text('')
+			$('.chat-user').append('Chatting with <i>' + this.id +'</i>');
+		});
+
+		 $( ".msg-box" ).focus(function() {
+			  console.log("Handler for .focus() called." );
+			  let text = $('.msg-box').val();
+			  let toUser = $('#chat-user-name').text()
+			  let data = {
+			  	to: toUser,
+			    type: 'isTyping',
+			    message: text
+			  }
+			socket.emit('sendMessage', data)
+		});
+
+		 $( ".msg-box" ).focusout(function() {
+		 	console.log("Handler for .focusout() called." );
+		 	 let text = $('.msg-box').val();
+			  let toUser = $('#chat-user-name').text()
+			  let data = {
+			  	to: toUser,
+			    type: 'doneTyping',
+			    message: text
+			  }
+			socket.emit('sendMessage', data)
+		});
+
+       
+      });
+    </script>
+  </body>
+</html>
