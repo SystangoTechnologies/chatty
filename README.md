@@ -1,72 +1,121 @@
-A Real Time Chat Application built using Node.js, Express, Mongoose and Socket.io
+A Real Time Chat Application built using Node.js, Express, Redis and Socket.io
 
 ## Index
-+ [Demo](#demo)
 + [Features](#features)
 + [Installation](#installation)
-+ [How It Works](#how-it-works)
-+ [Support](#support)
-+ [Contribute](#contribute)
++ [Directory Structure](#directory-structure)
 + [License](#license)
 
 
 ## Features<a name="features"></a>
 + Uses Express as the application Framework.
-+ Manages Sessions using [express-session](https://github.com/expressjs/session) package.
 + Real-time communication between a client and a server using [Socket.io](https://github.com/socketio/socket.io).
-+ Uses [MongoDB](https://github.com/mongodb/mongo), [Mongoose](https://github.com/Automattic/mongoose) and [MongoLab(mLab)](https://mlab.com/) for storing and querying data.
-+ Stores session in a [MongoDB](https://github.com/mongodb/mongo) using [connect-mongo](https://github.com/kcbanner/connect-mongo); a MongoDB-based session store.
++ Uses [MySQL](https://www.mysql.com/), [Sequelize](https://github.com/sequelize/sequelize) and [mySQL workbench](https://www.mysql.com/products/workbench/) for storing and querying data.
++ Uses [Redis](https://redis.io/) for broadcasting active users. Also as in-memory data store.
++ Dockerized and uses docker-compose file.
++ Running multiple clusters(each cluster is independent from each other)
 
-## Installation<a name="installation"></a>
+## Directory Structure <a name="directory-structure"></a>
+        .
+        ├── app 
+        │   ├── config
+        │   │   ├── config.json
+        │   │   └── index.js
+        │   └── socket
+        │       └── index.js
+        ├── app.json
+        ├── docker-compose.yml
+        ├── Dockerfile
+        ├── LICENSE
+        ├── package.json
+        ├── package-lock.json
+        ├── Procfile
+        ├── README.md
+        └── server.js
+
+## Installation <a name="installation"></a>
 ### Running Locally
-Make sure you have [Node.js](https://nodejs.org/) and [npm](https://www.npmjs.com/) installed.
+Make sure you have [Docker](https://docs.docker.com/v17.09/engine/installation/#cloud) and Docker-compose [npm](https://docs.docker.com/compose/install/) installed.
 
 1. Clone or Download the repository
+	```
+	$ git clone https://github.com/SystangoTechnologies/chatty
+	$ cd chatty
+	```
+2. Set Environment Variables
 
 	```
-	$ git clone 
-	$ cd chat.io
+	- PORT=3000
+    - REDIS_PORT=6380
+    - REDIS_HOST=redis
+    - REDIS_PASSWORD=''
 	```
-2. Install Dependencies
+3. Start the application
 
 	```
-	$ npm install
-	```
-2. Edit configuration file in _app/config/config.json_ with your credentials(see [Setup Configurations](#configurations)).
-
-5. Start the application
-
-	```
-	$ npm start
+	$ sudo docker-compose up
 	```
 Your app should now be running on [localhost:3000](http://localhost:3000/).
 
-## How It Works<a name="how-it-works"></a>
-### Setup Configurations<a name="configurations"></a>
-The configurations on production will be assigned from Environment Variables on Heroku, while the development configurations reside inside _app/config/config.json_ file.
+## License <a name="license"></a>
+Built under [MIT](http://www.opensource.org/licenses/mit-license.php) license.A Real Time Chat Application built using Node.js, Express, Redis and Socket.io
 
-#### MongoDB & MongoLab
-You need to create a database on MongoLab, then create a database user, get the `MongoDB URI`, and assign it to `dbURI`.
+## Index
++ [Features](#features)
++ [Installation](#installation)
++ [Directory Structure](#directory-structure)
++ [License](#license)
 
-#### Session
-The session needs a random string to make sure the session id in the browser is random. That random string is used to encrypt the session id in the browser, _Why?_ To prevent session id guessing.
 
-### Database<a name="database"></a>
-Mongoose is used to interact with a MongoDB that's hosted by MongoLab. 
+## Features<a name="features"></a>
++ Uses Express as the application Framework.
++ Real-time communication between a client and a server using [Socket.io](https://github.com/socketio/socket.io).
++ Uses [MySQL](https://www.mysql.com/), [Sequelize](https://github.com/sequelize/sequelize) and [mySQL workbench](https://www.mysql.com/products/workbench/) for storing and querying data.
++ Uses [Redis](https://redis.io/) for broadcasting active users. Also as in-memory data store.
++ Dockerized and uses docker-compose file.
++ Running multiple clusters(each cluster is independent from each other)
 
-#### Schemas
-There are two schemas; users and rooms. 
+## Directory Structure <a name="directory-structure"></a>
+        .
+        ├── app 
+        │   ├── config
+        │   │   ├── config.json
+        │   │   └── index.js
+        │   └── socket
+        │       └── index.js
+        ├── app.json
+        ├── docker-compose.yml
+        ├── Dockerfile
+        ├── LICENSE
+        ├── package.json
+        ├── package-lock.json
+        ├── Procfile
+        ├── README.md
+        └── server.js
 
-Each user has a username, passowrd, social Id, and picture. If the user is logged via username and password, then social Id has to be null, and the if logged in via a social account, then the password will be null.
+## Installation <a name="installation"></a>
+### Running Locally
+Make sure you have [Docker](https://docs.docker.com/v17.09/engine/installation/#cloud) and Docker-compose [npm](https://docs.docker.com/compose/install/) installed.
 
-Each room has a title, and array of connections. Each item in the connections array represents a user connected through a unique socket; object composed of _{userId + socketId}_. Both of them together are unique.
+1. Clone or Download the repository
+	```
+	$ git clone https://github.com/SystangoTechnologies/chatty
+	$ cd chatty
+	```
+2. Set Environment Variables
 
-### Models<a name="models"></a>
-Each model wraps Mongoose Model object, overrides and provides some methods. There are two models; User and Room.
+	```
+	- PORT=3000
+    - REDIS_PORT=6380
+    - REDIS_HOST=redis
+    - REDIS_PASSWORD=''
+	```
+3. Start the application
 
-### Session<a name="session"></a>
-Session in Express applications are best managed using [express-session](https://github.com/expressjs/session) package. Session data are stored locally on your computer, while it's stored in the database on the production environment. Session data will be deleted upon logging out.
-
+	```
+	$ sudo docker-compose up
+	```
+Your app should now be running on [localhost:3000](http://localhost:3000/).
 
 ## License <a name="license"></a>
 Built under [MIT](http://www.opensource.org/licenses/mit-license.php) license.
