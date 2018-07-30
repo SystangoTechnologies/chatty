@@ -27,7 +27,7 @@ var ioEvents = function (io) {
 
         socket.emit('activeUsersList', activeUsersName)
         socket.broadcast.emit('activeUsersList', activeUsersName)
-      }
+     }
     })
 
     // Login or SignUp user
@@ -57,14 +57,18 @@ var ioEvents = function (io) {
 
     socket.on('sendMessage', async function (data) {
       // Set username through with the message was sent (sender)
-      data.from = this.request.session.user
+      data.from = this.request.user
 
       // Get the server name of the client (recipient)
       io.redisCache.hget('OnlineUsers', data.to.toLowerCase(), async function (_err, obj) {
+        if(!obj){
+          return
+        }
         let message = {
           event: 'addMessage',
           from: data.from,
           to: data.to,
+          type: data.type,
           message: data.message
         }
         let channelName = JSON.parse(obj).serverName
@@ -125,7 +129,7 @@ var init = function (app) {
 
   const port = process.env.REDIS_PORT || 6379
   const host = process.env.REDIS_HOST || 'localhost'
-  const password = process.env.REDIS_PASSWORD || 6379
+  const password = process.env.REDIS_PASSWORD || ''
 
   const pub = redis.createClient(port, host, { auth_pass: password })
   const sub = redis.createClient(port, host, { auth_pass: password })

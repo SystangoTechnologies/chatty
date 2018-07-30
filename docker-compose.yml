@@ -1,31 +1,40 @@
 version: '2'
 services:
-  web:
+  cluster1:
     build: .
     ports:
-      - "3000:3000"
+      - "6001:3000"
     volumes:
       - .:/src/app
     environment:
       - PORT=3000
-      - DB_USER=root
-      - DB_PASS=rootpass
-      - DB_HOST=192.168.1.40
-      - DB_PORT=27018
-      - DB_NAME=ChatServer
-      - DEFAULT_CHATSERVER=http://192.168.1.40:3000/chat
+      - REDIS_PORT=6379
+      - REDIS_HOST=redis
+      - REDIS_PASSWORD=''
+      - SERVER_NAME='ChatServer_server1'
     command: forever server.js
     depends_on:
-      - mongo-db
-  mongo-db:
-    container_name: mongo
-    image: mongo
-    environment:
-      # provide your credentials here
-      - MONGO_INITDB_ROOT_USERNAME=root
-      - MONGO_INITDB_ROOT_PASSWORD=rootpass
-    command: mongod
-    volumes:
-      - ./data:/data/db
+      - redis
+  cluster2:
+    build: .
     ports:
-      - "27018:27017"
+      - "6002:3000"
+    volumes:
+      - .:/src/app
+    environment:
+      - PORT=3000
+      - REDIS_PORT=6379
+      - REDIS_HOST=redis
+      - REDIS_PASSWORD=''
+      - SERVER_NAME='ChatServer_server2'
+    command: forever server.js
+    depends_on:
+      - redis
+  redis:
+    image: "redis:alpine"
+    ports:
+      - "6379:6379"
+    environment:
+      - PORT=6379
+    command: ["redis-server", "--appendonly", "yes"]
+    hostname: redis
