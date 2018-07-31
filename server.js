@@ -3,7 +3,7 @@
 // Chat application dependencies
 var express = require('express')
 var app = express()
-var ioServer = require('./app/socket')(app)
+var ioServer = require('./src/socket')(app)
 var path = require('path');
 var public = path.join(__dirname, 'public');
 

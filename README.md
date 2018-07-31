@@ -4,6 +4,7 @@ A Real Time Chat Application built using Node.js, Express, Redis and Socket.io
 + [Features](#features)
 + [Installation](#installation)
 + [Directory Structure](#directory-structure)
++ [Contributors](#Contributors)
 + [License](#license)
 
 
@@ -56,6 +57,10 @@ Make sure you have [Docker](https://docs.docker.com/v17.09/engine/installation/#
 	$ sudo docker-compose up
 	```
 Your app should now be running on [localhost:3000](http://localhost:3000/).
+
+## Contributors <a name="Contributors"></a>
+[Arpit Khandelwal](https://github.com/arpit-systango)
+[Anurag Vikram Singh](https://github.com/avsingh-systango)
 
 ## License <a name="license"></a>
 Built under [MIT](http://www.opensource.org/licenses/mit-license.php) license.
