@@ -1,6 +1,6 @@
 // 'use strict'
-
-// Chat application dependencies
+require('babel-core/register')()
+require('babel-polyfill')
 var express = require('express')
 var app = express()
 var ioServer = require('./src/socket')(app)
@@ -12,7 +12,6 @@ app.get('/', function(req, res) {
 });
 
 app.use('/', express.static(public));
-
 
 // Set the port number
 var port = process.env.PORT || 6003

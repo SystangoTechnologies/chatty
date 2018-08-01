@@ -1,4 +1,5 @@
-'use strict'
+// 'use strict'
+// var Room = require('./../models/index')
 
 let serverName = process.env.SERVER_NAME || 'ChatServer_server1'
 

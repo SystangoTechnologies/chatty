@@ -47,12 +47,14 @@
    		<p class="lead chat-user"></p>
 	    <ul id="messages">
 	    </ul>
-	    <div class='user-is-typing'  style="display: none;"><i>user is typing .....<i></div>
-	    <div class="input-group mb-3" style="float: left; margin-left: 25%; max-width: 50%;">
-		  <input type="text" class="form-control msg-box" placeholder="Message" aria-label="Message" aria-describedby="basic-addon2">
-		  <div class="input-group-append">
-		    <button class="btn btn-outline-secondary send-msg" type="button">Send</button>
-		  </div>
+			<div class='user-is-typing'  style="display: none;"><i>user is typing .....<i></div>
+			<div class="message-input-div" style="display: none;" >
+				<div class="input-group mb-3" style="float: left; margin-left: 25%; max-width: 50%;">
+				<input type="text" class="form-control msg-box" placeholder="Message" aria-label="Message" aria-describedby="basic-addon2">
+				<div class="input-group-append">
+					<button class="btn btn-outline-secondary send-msg" type="button">Send</button>
+				</div>
+			</div>	
 		</div>
 	</div>
 
@@ -159,6 +161,7 @@
 			$('#chat-user-name').text(this.id)
 			$('.chat-user').html('');
 			$('#messages').text('')
+			$('.message-input-div').show();
 			$('.chat-user').append('Chatting with <i>' + this.id +'</i>');
 		});
 
