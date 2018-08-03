@@ -21,7 +21,8 @@
    	<br>
    	<div class="container">
    		<div class="alert alert-success" role="alert" id='login-success' style="display: none;"> Login Successful!!!! </div>
-   		<div class="alert alert-danger" role="alert" id='login-failed' style="display: none;">Invalid login!!! </div>
+			 <div class="alert alert-danger" role="alert" id='login-failed' style="display: none;">Invalid login!!! </div>
+			 <div class="alert alert-danger" role="alert" id='disconnected-failed' style="display: none;">Something went wrong </div>                                                                      !!! </div>
 
 	  	<div class="input-group input-group-sm mb-3">
 		  <div class="input-group-prepend">
@@ -63,7 +64,7 @@
     <script>
       $(function () {
 				// Enter IP/Dns on the server
-        var socket = io('http://localhost:3000/users', { transports: ['websocket'] });
+        var socket = io('http://baseball.draft2teams.sockets.staging.strat-o-matic.com/users', { transports: ['websocket'] });
       	let username;
       	let userLogedIn = false;
 
