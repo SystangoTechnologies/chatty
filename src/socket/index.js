@@ -92,6 +92,9 @@ var ioEvents = function (io) {
       // Set username through with the message was sent (sender)
       data.sender = this.request.user
 
+      // Persist one to one Message in async way
+      utility.persistOneToOneMsg(data.sender, data.recipient, data.message)
+
       // Get the server name of the client (recipient)
       io.redisCache.hget('OnlineUsers', data.recipient.toLowerCase(), async function (_err, obj) {
         if(!obj){
@@ -105,9 +108,6 @@ var ioEvents = function (io) {
           message: data.message
         }
         let channelName = JSON.parse(obj).serverName
-
-        // Persist one to one Message in async way
-        utility.persistOneToOneMsg(message)
 
         // Check if recipient is connected to the current server
         if (channelName === serverName) {

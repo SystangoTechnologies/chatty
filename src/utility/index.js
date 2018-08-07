@@ -1,19 +1,15 @@
 import db from './../models/index'
 
 // Persisting one to one messages
-export async function persistOneToOneMsg (message) {
+export async function persistOneToOneMsg (sender, recipient, message) {
     try{
-        // check sender and recipient
-        if(!message.recipient || !message.sender){
-            return true;
-        } 
 
         // Getting the conversation Id 
-        let conversation = await getConversation(message)
+        let conversation = await getConversation(sender, recipient)
     
         let msg = await db.Message.create({
-            message: message.message,
-            sender: message.sender,
+            message: message,
+            sender: sender,
             url: '',
             status: 0,
             peer_conversation_id: conversation.id
@@ -21,7 +17,7 @@ export async function persistOneToOneMsg (message) {
 
         // Storing messages reference in Pending Table
         let pendingMsg = await db.Pending.create({
-            recipient: message.recipient,
+            recipient: recipient,
             message_id: msg.dataValues.id
         })
 
@@ -60,10 +56,11 @@ export async function getMessages (user) {
 }
 
 // Get conversation ID
-async function getConversation (message) {
+async function getConversation (sender, recipient) {
     try{
-        let user1 = (message.recipient < message.sender) ? message.recipient : message.sender,
-            user2 = (message.recipient > message.sender) ? message.recipient : message.sender
+        // Arranging users lexicographically
+        let user1 = (recipient < sender) ? recipient : sender,
+            user2 = (recipient > sender) ? recipient : sender
 
         let peerConversation =  await db.Peer_Conversation.findOrCreate({
             where: {
