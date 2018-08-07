@@ -2,6 +2,7 @@
 
 var init = function () {
   if (process.env.NODE_ENV === 'production') {
+    console.log('Production ENVs')
     return {
       db: {
         user: process.env.DB_USER,
