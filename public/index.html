@@ -22,7 +22,7 @@
    		<div class="alert alert-success" role="alert" id='login-success' style="display: none;"> Login Successful!!!! </div>
 			<div class="alert alert-danger" role="alert" id='login-failed' style="display: none;">Invalid login!!! </div>
 			<div class="alert alert-danger" role="alert" id='socket-disconnected' style="display: none;">Something went wrong !!!!! </div>
-			<div class="alert alert-info" role="alert" id='socket-disconnected-info' style="display: none;"><strong>INFO</strong> Please try refreshing the tab. </div>
+			<div class="alert alert-info" role="alert" id='socket-disconnected-info' style="display: none;"><strong>INFO:</strong> Please try refreshing the tab. </div>
 
 	  	<div class="input-group input-group-sm mb-3">
 		  <div class="input-group-prepend">
@@ -65,8 +65,8 @@
     <script>
       $(function () {
 				// Enter IP/Dns on the server
-				// var socket = io('http://baseball.draft2teams.sockets.staging.strat-o-matic.com/users', { transports: ['websocket'] });
-				var socket = io('http://192.168.1.40:6003/users', { transports: ['websocket'] });
+				var socket = io('http://baseball.draft2teams.sockets.staging.strat-o-matic.com/users', { transports: ['websocket'] });
+				// var socket = io('http://192.168.1.40:6003/users', { transports: ['websocket'] });
 				let username;
       			let userLogedIn = false;
 
@@ -128,7 +128,7 @@
 				$('.msg-box').keydown(function(e) {
 					if (e.keyCode == 13) {
 						let text = $('.msg-box').val();
-						if(text.length <= 0){
+						if(text.trim().length <= 0){
 								return
 						}
 						let recipient = $('#chat-user-name').text()
@@ -153,7 +153,7 @@
 
 				$('.send-msg').click(function()	{
 					let text = $('.msg-box').val();
-					if(text.length <= 0){
+					if(text.trim().length <= 0){
 							return
 					}
 					let toUser = $('#chat-user-name').text()
