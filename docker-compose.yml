@@ -8,6 +8,7 @@ services:
       - .:/src/app
     environment:
       - PORT=3000
+      - NODE_ENV=${NODE_ENV}
       - REDIS_PORT=6379
       - REDIS_HOST=redis
       - REDIS_PASSWORD=''
