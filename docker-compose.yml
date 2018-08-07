@@ -11,6 +11,12 @@ services:
       - REDIS_PORT=6379
       - REDIS_HOST=redis
       - REDIS_PASSWORD=''
+      - DB_USER=${CHAT_DB_USER}
+      - DB_PASSWORD=${CHAT_DB_PASSWORD}
+      - DB_HOST=${CHAT_DB_HOST}
+      - DB_PORT=${CHAT_DB_PORT}
+      - DB_NAME=${CHAT_DB_NAME}
+      - DB_DIALECT=${CHAT_DB_DIALECT}
       - SERVER_NAME='ChatServer_server1'
     command: forever server.js
     depends_on:
@@ -26,6 +32,12 @@ services:
       - REDIS_PORT=6379
       - REDIS_HOST=redis
       - REDIS_PASSWORD=''
+      - DB_USER=${CHAT_DB_USER}
+      - DB_PASSWORD=${CHAT_DB_PASSWORD}
+      - DB_HOST=${CHAT_DB_HOST}
+      - DB_PORT=${CHAT_DB_PORT}
+      - DB_NAME=${CHAT_DB_NAME}
+      - DB_DIALECT=${CHAT_DB_DIALECT}
       - SERVER_NAME='ChatServer_server2'
     command: forever server.js
     depends_on:
