@@ -176,7 +176,7 @@
 
 				socket.on('addMessage', function(msg){
 						console.log(msg);
-					if(msg.type === 'text'){
+					if(msg.type === 'text' && ((msg.sender === $('#chat-user-name').text()) || $('#chat-user-name').text() == "")){
 							$('#messages').append($('<li>').text( msg.sender + ' : ' + msg.message));
 							window.scrollTo(0, document.body.scrollHeight);
 					} else if(msg.type === 'isTyping'){
