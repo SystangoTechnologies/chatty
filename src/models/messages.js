@@ -4,14 +4,15 @@ import Sequelize from 'sequelize'
 module.exports = function(sequelize, DataTypes) {
     const messages = sequelize.define('Message', {
         id: {
-            type: Sequelize.INTEGER,
-            autoIncrement: true,
-            primaryKey: true
+            type: DataTypes.UUID,
+            primaryKey: true,
+            defaultValue: DataTypes.UUIDV4,
+            allowNull: false
         },
         message: {
             type: Sequelize.STRING
         },
-        from: {
+        sender: {
             type: Sequelize.STRING
         },
         url: {
@@ -20,20 +21,14 @@ module.exports = function(sequelize, DataTypes) {
         status: {
             type: Sequelize.INTEGER
         },
-        peer_conversation_id: // name of the key we're adding
-        {
-            type: Sequelize.INTEGER
+        peer_conversation_id: {
+            type: DataTypes.UUID
         }
     }, {
-        timestamps: true
+        timestamps: true,
+        underscored: true
     });
 
-    messages.associate = function(models) {
-        //messages.belongsTo(models.Peer_conversation, { as: "Peer_conversation", foreignKey: 'peer_conversation_id', targetKey: 'id', onDelete: "CASCADE" });
-        messages.hasMany(models.Pending, { as: 'Pending_Messages'});
-        messages.hasMany(models.Delivered), { as: 'Delivered_Messages'};
-    };
-      
     messages.sync({ force: false }).then(() => {
         // Table created       
         return true;

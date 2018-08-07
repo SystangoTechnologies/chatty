@@ -4,28 +4,25 @@ import Sequelize from 'sequelize'
 module.exports = function(sequelize, DataTypes) {
     const delivered = sequelize.define('Delivered', {
         id: {
-            type: Sequelize.INTEGER,
-            autoIncrement: true,
-            primaryKey: true
+            type: DataTypes.UUID,
+            primaryKey: true,
+            defaultValue: DataTypes.UUIDV4,
+            allowNull: false
         },
-        message: {
+        recipient: {
             type: Sequelize.STRING
         },
-        from: {
+        sender: {
             type: Sequelize.STRING
         },
-        message_id: // name of the key we're adding
-        {
-            type: Sequelize.INTEGER
+        message_id: {
+            type: DataTypes.UUID
         }
     }, {
         timestamps: true,
-        freezeTableName: true
+        freezeTableName: true,
+        underscored: true
     });
-
-    // delivered.associate = function(models) {
-    //     delivered.belongsTo(models.Message, {  as: "Delivered_Messages", foreignKey: 'message_id', targetKey: 'id', onDelete: "CASCADE" });
-    // };
       
     delivered.sync({ force: false }).then(() => {
         // Table created       

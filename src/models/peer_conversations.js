@@ -2,11 +2,12 @@ import Sequelize from 'sequelize'
 
 /** * Request Schema */
 module.exports = function(sequelize, DataTypes) {
-    const peerConversation = sequelize.define('Peer_conversation', {
+    const peerConversation = sequelize.define('Peer_Conversation', {
         id: {
-            type: Sequelize.INTEGER,
-            autoIncrement: true,
-            primaryKey: true
+            type: DataTypes.UUID,
+            primaryKey: true,
+            defaultValue: DataTypes.UUIDV4,
+            allowNull: false
         },
         user1: {
             type: Sequelize.STRING
@@ -18,12 +19,16 @@ module.exports = function(sequelize, DataTypes) {
             type: Sequelize.STRING
         }
     }, {
-        timestamps: true
+        indexes: [
+          {
+            unique: true,
+            fields: ['user1', 'user2']
+          }
+        ]
+      }, {
+        timestamps: true,
+        underscored: true
     });
-
-    peerConversation.associate = function(models) {
-        peerConversation.hasMany(models.Message, {as: 'Messages'});  
-    };
 
     peerConversation.sync({ force: false }).then(() => {
         // Table created       

@@ -1,5 +1,5 @@
 // 'use strict'
-// var Room = require('./../models/index')
+import * as utility from './../utility/index'
 
 let serverName = process.env.SERVER_NAME || 'ChatServer_server1'
 
@@ -58,17 +58,17 @@ var ioEvents = function (io) {
 
     socket.on('sendMessage', async function (data) {
       // Set username through with the message was sent (sender)
-      data.from = this.request.user
+      data.sender = this.request.user
 
       // Get the server name of the client (recipient)
-      io.redisCache.hget('OnlineUsers', data.to.toLowerCase(), async function (_err, obj) {
+      io.redisCache.hget('OnlineUsers', data.recipient.toLowerCase(), async function (_err, obj) {
         if(!obj){
           return
         }
         let message = {
           event: 'addMessage',
-          from: data.from,
-          to: data.to,
+          sender: data.sender,
+          recipient: data.recipient,
           type: data.type,
           message: data.message
         }
@@ -76,7 +76,7 @@ var ioEvents = function (io) {
 
         // Check if recipient is connected to the current server
         if (channelName === serverName) {
-          let tempSocket = localActiveUsersMap.get(data.to.toLowerCase())
+          let tempSocket = localActiveUsersMap.get(data.recipient.toLowerCase())
           if (tempSocket) {
             // emit message directly to client
             tempSocket.emit('addMessage', message)
@@ -88,9 +88,48 @@ var ioEvents = function (io) {
       })
     })
 
-    socket.on('typing', function (room) {
+    socket.on('sendMessageAndPersist', async function (data) {
+      // Set username through with the message was sent (sender)
+      data.sender = this.request.user
+
+      // Get the server name of the client (recipient)
+      io.redisCache.hget('OnlineUsers', data.recipient.toLowerCase(), async function (_err, obj) {
+        if(!obj){
+          return
+        }
+        let message = {
+          event: 'addMessage',
+          sender: data.sender,
+          recipient: data.recipient,
+          type: data.type,
+          message: data.message
+        }
+        let channelName = JSON.parse(obj).serverName
+
+        // Persist one to one Message in async way
+        utility.persistOneToOneMsg(message)
+
+        // Check if recipient is connected to the current server
+        if (channelName === serverName) {
+          let tempSocket = localActiveUsersMap.get(data.recipient.toLowerCase())
+          if (tempSocket) {
+            // emit message directly to client
+            tempSocket.emit('addMessage', message)
+          }
+        } else {
+          // publish message on the redis channel to specific server
+          io.redisPublishChannel.publish(channelName, JSON.stringify(message))
+        }
+      })
     })
 
+    // Get all the pending message of current user
+    socket.on('getPendingMessages', async function () {
+      let msg = await  utility.getMessages(this.request.user)   
+      socket.emit('addMessageBulk', msg)
+    })
+    
+  
     let getActiveUsersName = function () {
       return new Promise(function (resolve, reject) {
         // Get all active users
@@ -108,7 +147,7 @@ var ioEvents = function (io) {
 
   // Receives messages published on redis for the client(recievers) connected to the current server
   io.messageListener.on('message', function (channel, message) {
-    let socket = localActiveUsersMap.get(JSON.parse(message).to)
+    let socket = localActiveUsersMap.get(JSON.parse(message).recipient)
     if (socket) {
       socket.emit('addMessage', message)
     }

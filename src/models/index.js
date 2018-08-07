@@ -7,13 +7,17 @@ var sequelize = new Sequelize(config.db.name, config.db.user, config.db.password
   host: config.db.host,
   port: config.db.port,
   dialect: config.db.dialect,
-
+  // logging: false,
+  define: {
+    underscored: true
+  },
   pool: {
     max: 5,
     min: 0,
     idle: 10000
   }
 })
+
 
 sequelize
     .authenticate()
@@ -26,21 +30,26 @@ sequelize
 
 var db = {}
 
-fs.readdirSync(__dirname)
-    .filter(function (file) {
-      return (file.indexOf('.') !== 0) && (file !== 'index.js')
-    })
-    .forEach(function (file) {
-      var model = sequelize.import(path.join(__dirname, file))
-      db[model.name] = model
-    })
 
-Object.keys(db).forEach(function (modelName) {
-  if ('associate' in db[modelName]) {
-    db[modelName].associate(db)
-  }
-})
+db.Sequelize = Sequelize;
+db.sequelize = sequelize;
 
-db.sequelize = sequelize
+//Models/tables
+db.Peer_Conversation = require('./peer_conversations.js')(sequelize, Sequelize);
+db.Message = require('./messages.js')(sequelize, Sequelize);
+db.Pending = require('./pending.js')(sequelize, Sequelize);
+db.Delivered = require('./delivered.js')(sequelize, Sequelize);
+
+
+//Relations
+db.Peer_Conversation.hasMany(db.Message);
+db.Message.belongsTo(db.Peer_Conversation);
+
+db.Message.hasMany(db.Pending);
+db.Pending.belongsTo(db.Message);
+
+db.Message.hasMany(db.Delivered);
+db.Delivered.belongsTo(db.Message);
+
 
 module.exports = db
