@@ -35,15 +35,15 @@ db.Sequelize = Sequelize;
 db.sequelize = sequelize;
 
 //Models/tables
-db.Peer_Conversation = require('./peer_conversations.js')(sequelize, Sequelize);
+db.Peer_conversation = require('./peer_conversations.js')(sequelize, Sequelize);
 db.Message = require('./messages.js')(sequelize, Sequelize);
 db.Pending = require('./pending.js')(sequelize, Sequelize);
 db.Delivered = require('./delivered.js')(sequelize, Sequelize);
 
 
 //Relations
-db.Peer_Conversation.hasMany(db.Message);
-db.Message.belongsTo(db.Peer_Conversation);
+db.Peer_conversation.hasMany(db.Message);
+db.Message.belongsTo(db.Peer_conversation);
 
 db.Message.hasMany(db.Pending);
 db.Pending.belongsTo(db.Message);

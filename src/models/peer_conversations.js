@@ -2,7 +2,7 @@ import Sequelize from 'sequelize'
 
 /** * Request Schema */
 module.exports = function(sequelize, DataTypes) {
-    const peerConversation = sequelize.define('Peer_Conversation', {
+    const peerConversation = sequelize.define('Peer_conversation', {
         id: {
             type: DataTypes.UUID,
             primaryKey: true,
@@ -26,8 +26,7 @@ module.exports = function(sequelize, DataTypes) {
           }
         ]
       }, {
-        timestamps: true,
-        underscored: true
+        timestamps: true
     });
 
     peerConversation.sync({ force: false }).then(() => {

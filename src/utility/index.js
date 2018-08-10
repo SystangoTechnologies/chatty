@@ -31,24 +31,34 @@ export async function getMessages (user) {
        // check sender and recipient
        if(!user){
            return false;
-       } 
+       }
 
-        // Fetching messages for the current user
-        let msgs = await db.Message.findAll({
-            include: [{
-                model: db.Pending,
-                where: {
-                    recipient: user
-                }
-            }],
-            attributes: {
-                include: [ 'message'],
-                exclude: ['peer__conversation_id']
+       let peerConversation =  await db.Peer_conversation.findAll({
+            where: {
+                [db.Sequelize.Op.or]: [{user1: user}, {user2: user}]
             },
+            include: [{
+                model: db.Message
+            }],
             raw: true
         })
 
-        return msgs
+   
+        // // Fetching messages for the current user
+        // let msgs = await db.Message.findAll({
+        //     include: [{
+        //         model: db.Pending,
+        //         where: {
+        //             recipient: user,   
+        //         },
+        //     }],
+        //     attributes: {
+        //         include: [ 'message']
+        //     },
+        //     raw: true
+        // })
+
+        return peerConversation
         
     } catch(err){
         console.log(err)
@@ -62,7 +72,7 @@ async function getConversation (sender, recipient) {
         let user1 = (recipient < sender) ? recipient : sender,
             user2 = (recipient > sender) ? recipient : sender
 
-        let peerConversation =  await db.Peer_Conversation.findOrCreate({
+        let peerConversation =  await db.Peer_conversation.findOrCreate({
             where: {
                 user1: user1,
                 user2: user2
@@ -73,6 +83,8 @@ async function getConversation (sender, recipient) {
                 user2: user2
             }
         })
+
+        console.log("peerConversation[0].dataValues ------> ", peerConversation[0].dataValues)
         
         return peerConversation[0].dataValues;
     } catch(err){

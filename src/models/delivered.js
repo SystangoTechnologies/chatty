@@ -20,8 +20,7 @@ module.exports = function(sequelize, DataTypes) {
         }
     }, {
         timestamps: true,
-        freezeTableName: true,
-        underscored: true
+        freezeTableName: true
     });
       
     delivered.sync({ force: false }).then(() => {

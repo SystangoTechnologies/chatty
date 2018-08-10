@@ -25,8 +25,7 @@ module.exports = function(sequelize, DataTypes) {
             type: DataTypes.UUID
         }
     }, {
-        timestamps: true,
-        underscored: true
+        timestamps: true
     });
 
     messages.sync({ force: false }).then(() => {
