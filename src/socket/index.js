@@ -163,7 +163,7 @@ var ioEvents = function (io) {
  */
 var init = function (app) {
   var server = require('http').Server(app)
-  var io = require('socket.io')(server)
+  var io = require('socket.io')(server, { origins: '*:*'})
   const redis = require('redis')
   const redisAdapter = require('socket.io-redis')
 
@@ -178,6 +178,8 @@ var init = function (app) {
   const redisPublishChannel = redis.createClient(port, host, { auth_pass: password })
 
   io.adapter(redisAdapter({ pubClient: pub, subClient: sub }))
+
+  io.origins('*:*') 
 
   io.redisCache = redisCache
   io.messageListener = messageListener
