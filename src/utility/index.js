@@ -26,42 +26,75 @@ export async function persistOneToOneMsg (sender, recipient, message) {
     }
 }
 
-export async function getMessages (user) {
+export async function getPendingMessages (user) {
     try{
        // check sender and recipient
        if(!user){
            return false;
        }
-
-       let peerConversation =  await db.Peer_conversation.findAll({
-            where: {
-                [db.Sequelize.Op.or]: [{user1: user}, {user2: user}]
-            },
+ 
+        // // Fetching messages for the current user
+        let msgs = await db.Message.findAll({
             include: [{
-                model: db.Message
+                model: db.Pending,
+                where: {
+                    recipient: user,   
+                },
             }],
+            attributes: {
+                include: [ 'message']
+            },
             raw: true
         })
 
-   
-        // // Fetching messages for the current user
-        // let msgs = await db.Message.findAll({
-        //     include: [{
-        //         model: db.Pending,
-        //         where: {
-        //             recipient: user,   
-        //         },
-        //     }],
-        //     attributes: {
-        //         include: [ 'message']
-        //     },
-        //     raw: true
-        // })
-
-        return peerConversation
+        return msgs
         
     } catch(err){
         console.log(err)
+    }
+}
+
+export async function getChatHistory(data, currentUser) {
+    try{
+        // Arranging users lexicographically
+        let user1 = (data.peer < currentUser) ? data.peer : currentUser,
+        user2 = (data.peer > currentUser) ? data.peer : currentUser
+ 
+        let peerConversation =  await db.Peer_conversation.findAll({
+            where: {
+                user1: user1,
+                user2: user2
+            },
+             include: [{
+                 model: db.Message
+             }],
+             attributes: {
+                  include: [[db.Sequelize.col('Messages.message'), 'message'],
+                   [db.Sequelize.col('Messages.sender'), 'sender'],
+                   [db.Sequelize.col('Messages.created_at'), 'created_at']
+                 ] 
+            },
+             order: db.Sequelize.col('Messages.created_at'),
+            // limit: 1,
+            raw: true
+         })
+ 
+         return peerConversation
+         
+     } catch(err){
+         console.log(err)
+     }
+}
+
+async function deleteAndChangeStatus (user) {
+    try {
+        let pendingMsg = await db.Pending.findAll({
+            where: {
+                recipient: user,   
+            },
+        })
+    } catch (err) {
+        // WIP
     }
 }
 
@@ -83,8 +116,6 @@ async function getConversation (sender, recipient) {
                 user2: user2
             }
         })
-
-        console.log("peerConversation[0].dataValues ------> ", peerConversation[0].dataValues)
         
         return peerConversation[0].dataValues;
     } catch(err){

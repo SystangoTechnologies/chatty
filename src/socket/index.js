@@ -70,7 +70,8 @@ var ioEvents = function (io) {
           sender: data.sender,
           recipient: data.recipient,
           type: data.type,
-          message: data.message
+          message: data.message,
+          created_at: new Date()
         }
         let channelName = JSON.parse(obj).serverName
 
@@ -105,7 +106,8 @@ var ioEvents = function (io) {
           sender: data.sender,
           recipient: data.recipient,
           type: data.type,
-          message: data.message
+          message: data.message,
+          created_at: new Date()
         }
         let channelName = JSON.parse(obj).serverName
 
@@ -125,8 +127,22 @@ var ioEvents = function (io) {
 
     // Get all the pending message of current user
     socket.on('getPendingMessages', async function () {
-      let msg = await  utility.getMessages(this.request.user)   
-      socket.emit('addMessageBulk', msg)
+      let msg = await  utility.getPendingMessages(this.request.user)   
+      socket.emit('addPendingMessages', msg)
+    })
+
+    socket.on('getChatHistory', async function (data) {
+      // data = {
+      //   peer: 'xyz',
+      //   messageCount: 10
+      // }
+      let msg = await  utility.getChatHistory(data, this.request.user)   
+      socket.emit('addChatHistoryMessages', msg)
+    })
+
+
+    socket.on('ackReceivedPendingMessages', async function () {
+      let status = await utility.deleteAndChangeStatus(this.request.user)
     })
     
   
@@ -186,7 +202,7 @@ var init = function (app) {
   io.redisPublishChannel = redisPublishChannel
 
   // WIP
-  io.redisCache.set(serverName, '', 'EX', 10)
+  // io.redisCache.set(serverName, '', 'EX', 10)
 
   // Force Socket.io to ONLY use "websockets"; No Long Polling.
   io.set('transports', ['websocket'])
