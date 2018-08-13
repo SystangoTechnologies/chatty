@@ -86,7 +86,7 @@ export async function getChatHistory(data, currentUser) {
      }
 }
 
-async function deleteAndChangeStatus (user) {
+export async function deleteAndChangeStatus (user) {
     try {
         let pendingMsg = await db.Pending.findAll({
             where: {
