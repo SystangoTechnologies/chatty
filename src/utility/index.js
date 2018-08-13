@@ -90,7 +90,7 @@ async function deleteAndChangeStatus (user) {
     try {
         let pendingMsg = await db.Pending.findAll({
             where: {
-                recipient: user,   
+                recipient: user
             },
         })
     } catch (err) {
