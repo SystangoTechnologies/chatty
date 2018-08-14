@@ -144,6 +144,12 @@ var ioEvents = function (io) {
     socket.on('ackReceivedPendingMessages', async function () {
       let status = await utility.deleteAndChangeStatus(this.request.user)
     })
+
+    // Gives list of user chats and latest message for the each chat record 
+    socket.on('getinboxMessages', async function () {
+      let data = await utility.getinboxMessages(this.request.user)
+      socket.emit('addInboxMessages', data)
+    })
     
   
     let getActiveUsersName = function () {

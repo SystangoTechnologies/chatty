@@ -38,12 +38,13 @@ export async function getPendingMessages (user) {
             include: [{
                 model: db.Pending,
                 where: {
-                    recipient: user,   
+                    recipient: user  
                 },
             }],
             attributes: {
                 include: [ 'message']
             },
+            order: db.Sequelize.col('Messages.created_at'),
             raw: true
         })
 
@@ -74,8 +75,8 @@ export async function getChatHistory(data, currentUser) {
                    [db.Sequelize.col('Messages.created_at'), 'created_at']
                  ] 
             },
-             order: db.Sequelize.col('Messages.created_at'),
-            // limit: 1,
+            order: db.Sequelize.col('Messages.created_at'),
+            // limit: data.messageCount,
             raw: true
          })
  
@@ -96,6 +97,65 @@ export async function deleteAndChangeStatus (user) {
     } catch (err) {
         // WIP
     }
+}
+
+export async function getinboxMessages (user) {
+    try {
+        // let peerConversation =  await db.Peer_conversation.findAll({
+        //     where: {
+        //         [db.Sequelize.Op.or]: [{user1: user}, {user2: user}]
+        //     },
+        //     include: [{
+        //         model: db.Message,
+        //         // order: db.Sequelize.col('Messages.created_at desc')
+        //         order: [[{model: db.Message}, 'created_at']]
+        //     }],
+           
+        //     group: db.Sequelize.col('Peer_conversation.id'),
+        //     raw: true
+        // })
+        attributes: []
+
+        let peerConversation =  await db.Peer_conversation.findAll({
+            where: {
+                [db.Sequelize.Op.or]: [{user1: user}, {user2: user}]
+            },
+            include: [{
+                model: db.Message
+            }],
+            attributes: {
+                include: [[db.Sequelize.col('Messages.message'), 'message'],
+                 [db.Sequelize.col('Messages.sender'), 'sender'],
+                 [db.Sequelize.col('Messages.created_at'), 'created_at']
+               ] 
+            },
+            order: [[db.Sequelize.col('Messages.created_at'), 'DESC']],
+            // WIP
+            // group by working but giving the oldest msg rather than the newest message
+            // group: db.Sequelize.col('Peer_conversation.id'),
+            raw: true
+        })
+        let result = await getFirstMsg(peerConversation)
+        return result
+    } catch(err){
+        console.log('err', err)
+    }
+   
+}
+
+// get only 
+async function getFirstMsg(data) {
+    let latestMsg = []
+    for( let element in data){
+        if( latestMsg.length === 0 ){
+            latestMsg.push(data[element])
+        } else {
+            if(latestMsg[latestMsg.length -1].id !== data[element].id){
+                latestMsg.push(data[element])
+            }
+        }
+    }
+    return latestMsg
 }
 
 // Get conversation ID
