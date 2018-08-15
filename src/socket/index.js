@@ -150,6 +150,12 @@ var ioEvents = function (io) {
       let data = await utility.getinboxMessages(this.request.user)
       socket.emit('addInboxMessages', data)
     })
+
+    // Gives list of user chats and latest message for the each chat record 
+    socket.on('getInboxMessages', async function () {
+      let data = await utility.getinboxMessages(this.request.user)
+      socket.emit('addInboxMessages', data)
+    })
     
   
     let getActiveUsersName = function () {

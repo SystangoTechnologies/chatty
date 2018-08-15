@@ -46,7 +46,7 @@
    	<div id="message_area" style="margin-left: 18%; margin-right: 18%; display: none;" >
 			<button type="button" class="btn btn-primary msg-persistance" style="float: right; display: none;"">On record</button>
    		<div id="chat-user-name" style="display: none"></div>
-   		<p class="lead chat-user">All user messages</p>
+   		<p class="lead chat-user">Inbox messages</p>
 	    <ul id="messages">
 	    </ul>
 			<div class='user-is-typing'  style="display: none;"><i>user is typing .....<i></div>
@@ -67,7 +67,7 @@
 				// Enter IP/Dns on the server
 				var socket = io('http://baseball.draft2teams.sockets.staging.strat-o-matic.com/users', { transports: ['websocket'] });
 				// var socket = io('http://192.168.1.40:6003/users', { transports: ['websocket'] });
-				// var socket = io('http://127.0.0.1/users', { transports: ['websocket'] });
+				// var socket = io('http://127.0.0.1:6003/users', { transports: ['websocket'] });
 				let username;
       			let userLogedIn = false;
 
@@ -92,8 +92,10 @@
 					$('#logout_btn').show();
 					$('#message_area').show();
 					setTimeout(function(){ $('#login-success').hide(); }, 1000);
-					socket.emit('getPendingMessages', username)
+					// socket.emit('getPendingMessages', username)
+					socket.emit('getInboxMessages')
 				});
+
 
 				socket.on('disconnect', function(){
 					console.log('disconnect');
@@ -198,6 +200,15 @@
 						console.log('else');
 					}
 				});
+
+
+				socket.on('addInboxMessages', function(data){
+					for(var msg of data) {
+						let convUser = (msg.user1 === username)? msg.user2 : msg.user1;
+						$('#messages').append($('<li>').text( 'Conversation with ' + convUser + " -- " + msg.sender + ' : ' + msg.message));
+						window.scrollTo(0, document.body.scrollHeight);
+					}
+				})
 
 				socket.on('addPendingMessages', function(data){
 					for(var msg of data) {

@@ -44,7 +44,7 @@ export async function getPendingMessages (user) {
             attributes: {
                 include: [ 'message']
             },
-            order: db.Sequelize.col('Messages.created_at'),
+            order: [['created_at', 'DESC']],
             raw: true
         })
 
@@ -129,7 +129,7 @@ export async function getinboxMessages (user) {
                  [db.Sequelize.col('Messages.created_at'), 'created_at']
                ] 
             },
-            order: [[db.Sequelize.col('Messages.created_at'), 'DESC']],
+            order: [[db.Sequelize.col('Messages.created_at')]],
             // WIP
             // group by working but giving the oldest msg rather than the newest message
             // group: db.Sequelize.col('Peer_conversation.id'),
@@ -145,17 +145,13 @@ export async function getinboxMessages (user) {
 
 // get only 
 async function getFirstMsg(data) {
-    let latestMsg = []
+    let msg = []
+    let latestMsg = new Map();
     for( let element in data){
-        if( latestMsg.length === 0 ){
-            latestMsg.push(data[element])
-        } else {
-            if(latestMsg[latestMsg.length -1].id !== data[element].id){
-                latestMsg.push(data[element])
-            }
-        }
+        latestMsg.set(data[element].id, data[element])
     }
-    return latestMsg
+    msg = Array.from(latestMsg.values());
+    return msg
 }
 
 // Get conversation ID
