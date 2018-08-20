@@ -9,8 +9,8 @@ module.exports = function(sequelize, DataTypes) {
             defaultValue: DataTypes.UUIDV4,
             allowNull: false
         },
-        message: {
-            type: Sequelize.STRING
+        data: {
+            type: Sequelize.JSON
         },
         sender: {
             type: Sequelize.STRING

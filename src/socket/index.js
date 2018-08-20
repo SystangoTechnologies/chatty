@@ -48,7 +48,7 @@ var ioEvents = function (io) {
       // Adding user name to activeUserMap
       localActiveUsersMap.set(userName.toLowerCase(), socket)
 
-      socket.emit('connected')
+      socket.emit('loginsuccess')
 
       let activeUsersName = await getActiveUsersName()
 
@@ -65,12 +65,13 @@ var ioEvents = function (io) {
         if(!obj){
           return
         }
+
         let message = {
           event: 'addMessage',
           sender: data.sender,
           recipient: data.recipient,
           type: data.type,
-          message: data.message,
+          message: data.data,
           created_at: new Date()
         }
         let channelName = JSON.parse(obj).serverName
@@ -94,7 +95,7 @@ var ioEvents = function (io) {
       data.sender = this.request.user
 
       // Persist one to one Message in async way
-      utility.persistOneToOneMsg(data.sender, data.recipient, data.message)
+      utility.persistOneToOneMsg(data.sender, data.recipient, data.data)
 
       // Get the server name of the client (recipient)
       io.redisCache.hget('OnlineUsers', data.recipient.toLowerCase(), async function (_err, obj) {
@@ -106,7 +107,7 @@ var ioEvents = function (io) {
           sender: data.sender,
           recipient: data.recipient,
           type: data.type,
-          message: data.message,
+          data: data.data,
           created_at: new Date()
         }
         let channelName = JSON.parse(obj).serverName

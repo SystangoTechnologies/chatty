@@ -1,14 +1,14 @@
 import db from './../models/index'
 
 // Persisting one to one messages
-export async function persistOneToOneMsg (sender, recipient, message) {
+export async function persistOneToOneMsg (sender, recipient, data) {
     try{
 
         // Getting the conversation Id 
         let conversation = await getConversation(sender, recipient)
     
         let msg = await db.Message.create({
-            message: message,
+            data: data,
             sender: sender,
             url: '',
             status: 0,
@@ -70,10 +70,10 @@ export async function getChatHistory(data, currentUser) {
                  model: db.Message
              }],
              attributes: {
-                  include: [[db.Sequelize.col('Messages.message'), 'message'],
+                include: [[db.Sequelize.col('Messages.data'), 'data'],
                    [db.Sequelize.col('Messages.sender'), 'sender'],
                    [db.Sequelize.col('Messages.created_at'), 'created_at']
-                 ] 
+                ]
             },
             order: db.Sequelize.col('Messages.created_at'),
             // limit: data.messageCount,
@@ -124,7 +124,7 @@ export async function getinboxMessages (user) {
                 model: db.Message
             }],
             attributes: {
-                include: [[db.Sequelize.col('Messages.message'), 'message'],
+                include: [[db.Sequelize.col('Messages.data'), 'data'],
                  [db.Sequelize.col('Messages.sender'), 'sender'],
                  [db.Sequelize.col('Messages.created_at'), 'created_at']
                ] 
