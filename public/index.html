@@ -65,7 +65,7 @@
     <script>
       $(function () {
 				// Enter IP/Dns on the server
-				var socket = io('http://baseball.draft2teams.sockets.staging.strat-o-matic.com/users', { transports: ['websocket'] });
+				//var socket = io('http://baseball.draft2teams.sockets.staging.strat-o-matic.com/users', { transports: ['websocket'] });
 				// var socket = io('http://192.168.1.40:6003/users', { transports: ['websocket'] });
 				// var socket = io('http://127.0.0.1:6003/users', { transports: ['websocket'] });
 				let username;
@@ -246,6 +246,7 @@
 						messageCount: 10
 					}
 					socket.emit('getChatHistory', data)
+					socket.emit('getinboxMessages')			
 				});
 
 				$(document).on('click','.msg-persistance',function(){

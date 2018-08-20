@@ -1,10 +1,10 @@
 {	"db": {
-		"user": "postgres",
-		"password": "postgres",
-		"host": "localhost",
-		"port": "5432",
-		"name": "ChatServer",
-		"dialect": "postgres"
+		"user": "root",
+		"password": "root",
+		"host": "127.0.0.1",
+		"port": "3306",
+		"name": "chatserver",
+		"dialect": "mysql"
 	},
 	"sessionSecret": "<RandomString>"
 }
