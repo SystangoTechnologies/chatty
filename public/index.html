@@ -65,7 +65,7 @@
     <script>
       $(function () {
 				// Enter IP/Dns on the server
-				//var socket = io('http://baseball.draft2teams.sockets.staging.strat-o-matic.com/users', { transports: ['websocket'] });
+				var socket = io('http://baseball.draft2teams.sockets.staging.strat-o-matic.com/users', { transports: ['websocket'] });
 				// var socket = io('http://192.168.1.40:6003/users', { transports: ['websocket'] });
 				// var socket = io('http://127.0.0.1:6003/users', { transports: ['websocket'] });
 				let username;
@@ -86,7 +86,7 @@
 					}
 				});
 
-				socket.on('connected', function(){
+				socket.on('loginsuccess', function(){
 					$('#login-success').show();
 					$('#login_signup_btn').hide();
 					$('#logout_btn').show();
@@ -139,12 +139,12 @@
 						let data = {
 									recipient: recipient,
 									type: 'text',
-									message: text
+									data: text
 						}
 
 						$('.msg-box').val('');
 						var time = new Date();
-						$('#messages').append($('<li style="text-align: right;">').text(username + ' : ' + data.message + "  ").append($('<sub style=\'color: #28a745;\'>').text( time.getHours()+':' + time.getMinutes() )));
+						$('#messages').append($('<li style="text-align: right;">').text(username + ' : ' + data.data + "  ").append($('<sub style=\'color: #28a745;\'>').text( time.getHours()+':' + time.getMinutes() )));
 						
 						let msgType = $('.msg-persistance').text()
 						if(msgType == 'Off record'){
@@ -165,12 +165,12 @@
 					let data = {
 								recipient: toUser,
 								type: 'text',
-								message: text
+								data: text
 						}
 
 					$('.msg-box').val('');
 					var time = new Date();
-					$('#messages').append($('<li style="text-align: right;">').text(username + ' : ' + data.message + "  ").append($('<sub style=\'color: #28a745;\'>').text( time.getHours()+':' + time.getMinutes() )));
+					$('#messages').append($('<li style="text-align: right;">').text(username + ' : ' + data.data + "  ").append($('<sub style=\'color: #28a745;\'>').text( time.getHours()+':' + time.getMinutes() )));
 					let msgType = $('.msg-persistance').text()
 					if(msgType == 'Off record'){
 						socket.emit('sendMessage', data)
@@ -184,7 +184,7 @@
 						console.log(msg);
 					if(msg.type === 'text' && ((msg.sender === $('#chat-user-name').text()) || $('#chat-user-name').text() == "")){
 							var time = new Date(msg.created_at);
-							$('#messages').append($('<li>').text( msg.sender + ' : ' + msg.message).append($('<sub style=\'color: #28a745;\'>').text( time.getHours()+':' + time.getMinutes() )));
+							$('#messages').append($('<li>').text( msg.sender + ' : ' + msg.data).append($('<sub style=\'color: #28a745;\'>').text( time.getHours()+':' + time.getMinutes() )));
 							window.scrollTo(0, document.body.scrollHeight);
 					} else if(msg.type === 'isTyping'){
 						console.log('isTyping');
@@ -205,7 +205,7 @@
 				socket.on('addInboxMessages', function(data){
 					for(var msg of data) {
 						let convUser = (msg.user1 === username)? msg.user2 : msg.user1;
-						$('#messages').append($('<li>').text( 'Conversation with ' + convUser + " -- " + msg.sender + ' : ' + msg.message));
+						$('#messages').append($('<li>').text( 'Conversation with ' + convUser + " -- " + msg.sender + ' : ' + msg.data));
 						window.scrollTo(0, document.body.scrollHeight);
 					}
 				})
@@ -213,7 +213,7 @@
 				socket.on('addPendingMessages', function(data){
 					for(var msg of data) {
 						// if(msg.sender === $('#chat-user-name').text()){
-							$('#messages').append($('<li>').text( msg.sender + ' : ' + msg.message));
+							$('#messages').append($('<li>').text( msg.sender + ' : ' + msg.data));
 							window.scrollTo(0, document.body.scrollHeight);
 						// }
 					}
@@ -224,10 +224,10 @@
 					for(var msg of data) {
 						var time = new Date(msg.created_at);
 						if(msg.sender === $('#chat-user-name').text()){							
-							$('#messages').append($('<li>').text( msg.sender + ' : ' + msg.message + "  ").append($('<sub style=\'color: #28a745;\'>').text( time.getHours()+':' + time.getMinutes() )));
+							$('#messages').append($('<li>').text( msg.sender + ' : ' + msg.data + "  ").append($('<sub style=\'color: #28a745;\'>').text( time.getHours()+':' + time.getMinutes() )));
 							window.scrollTo(0, document.body.scrollHeight);
 						} else if( msg.sender === username ) {
-							$('#messages').append($('<li style="text-align: right;">').text(msg.sender + ' : ' +  msg.message + "  ").append($('<sub style=\'color: #28a745;\'>').text( time.getHours()+':' + time.getMinutes() )));
+							$('#messages').append($('<li style="text-align: right;">').text(msg.sender + ' : ' +  msg.data + "  ").append($('<sub style=\'color: #28a745;\'>').text( time.getHours()+':' + time.getMinutes() )));
 						} else {
 
 						}
@@ -266,7 +266,7 @@
 						let data = {
 							recipient: toUser,
 							type: 'isTyping',
-							message: text
+							data: text
 						}
 					socket.emit('sendMessage', data)
 				});
@@ -278,7 +278,7 @@
 						let data = {
 							recipient: toUser,
 							type: 'doneTyping',
-							message: text
+							data: text
 						}
 					socket.emit('sendMessage', data)
 				});	
