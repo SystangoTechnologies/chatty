@@ -10,7 +10,7 @@ module.exports = function(sequelize, DataTypes) {
             allowNull: false
         },
         data: {
-            type: Sequelize.STRING
+            type: Sequelize.TEXT
         },
         sender: {
             type: Sequelize.STRING
