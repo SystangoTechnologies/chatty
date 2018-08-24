@@ -197,8 +197,11 @@ var ioEvents = function (io) {
     }
   })
 
-  // Server namespace
-  io.of('/parent_server').on('connection', function (socket) {
+  io.of('/').on('connection', function(socket) {
+    if (socket.handshake.query.token !== 'hgQaPKevgEkwV2wK' ){
+      return
+    }
+
     socket.on('sendMessageToClients', async function (data) {
       /* msg = {
         receipent = 'xyz',
@@ -239,7 +242,7 @@ var ioEvents = function (io) {
         }
       })
     })
-  })
+  });
 
   // Receives messages published on redis for the client(recievers) connected to the current server
   io.messageListener.on('message', function (channel, message) {
