@@ -26,6 +26,32 @@ export async function persistOneToOneMsg (sender, recipient, data) {
     }
 }
 
+// Message sent by servers
+export async function sendAndPersistMsg(sender, peer, recipient, data) {
+    try{
+
+        // Getting the conversation Id 
+        let conversation = await getConversation(peer, recipient)
+    
+        let msg = await db.Message.create({
+            data: data,
+            sender: sender,
+            url: '',
+            status: 0,
+            peer_conversation_id: conversation.id
+        })
+
+        // Storing messages reference in Pending Table
+        let pendingMsg = await db.Pending.create({
+            recipient: recipient,
+            message_id: msg.dataValues.id
+        })
+
+    } catch(err){
+        console.log(err)
+    }
+}
+
 export async function getPendingMessages (user) {
     try{
        // check sender and recipient
@@ -41,9 +67,6 @@ export async function getPendingMessages (user) {
                     recipient: user  
                 },
             }],
-            attributes: {
-                include: [ 'message']
-            },
             order: [['created_at', 'DESC']],
             raw: true
         })
@@ -89,14 +112,66 @@ export async function getChatHistory(data, currentUser) {
 
 export async function deleteAndChangeStatus (user) {
     try {
+
+        // WIP For Delivered Messages
+        // let msgs = await db.Message.findAll({
+        //     include: [{
+        //         model: db.Pending,
+        //         where: {
+        //             recipient: user  
+        //         },
+        //     }],
+        //     order: [['created_at', 'DESC']],
+        //     raw: true
+        // })
+
+        // var pendingMsgs = []
+        // let data
+        // if(msgs || msgs.length>0) {
+        //     msgs.map( msg => pendingMsgs.push( data = {
+        //         id: msg.id,
+        //         sender: msg.sender
+        //     }))
+        // }
+
+        // Working
         let pendingMsg = await db.Pending.findAll({
             where: {
                 recipient: user
             },
+            attributes: ['message_id']
         })
+
+        var pendingMsgIds = []
+
+        if(pendingMsg || pendingMsg.length>0) {
+            pendingMsg.map( msg => pendingMsgIds.push(msg.dataValues.message_id))
+        }
+
+        if(pendingMsgIds.length>0) {
+
+            let allMessages = await db.Message.update({
+                status:1
+              }, {
+                where: {
+                    id: {
+                        $in: pendingMsgIds
+                    }
+                }
+            })          
+
+            db.Pending.destroy({
+                where:{ 
+                    recipient: user
+                }
+            })
+        }        
+                    
     } catch (err) {
         // WIP
+        console.log(err);
     }
+
 }
 
 export async function getinboxMessages (user) {
