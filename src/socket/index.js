@@ -238,7 +238,7 @@ var ioEvents = function (io) {
   io.messageListener.on('message', function (channel, message) {
     let socket = localActiveUsersMap.get(JSON.parse(message).recipient)
     if (socket) {
-      socket.emit('addMessage', message)
+      socket.emit('addMessage', JSON.parse(message))
     }
   })
 
