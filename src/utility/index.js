@@ -112,30 +112,7 @@ export async function getChatHistory(data, currentUser) {
 
 export async function deleteAndChangeStatus (user) {
     try {
-
-        // WIP For Delivered Messages
-        // let msgs = await db.Message.findAll({
-        //     include: [{
-        //         model: db.Pending,
-        //         where: {
-        //             recipient: user  
-        //         },
-        //     }],
-        //     order: [['created_at', 'DESC']],
-        //     raw: true
-        // })
-
-        // var pendingMsgs = []
-        // let data
-        // if(msgs || msgs.length>0) {
-        //     msgs.map( msg => pendingMsgs.push( data = {
-        //         id: msg.id,
-        //         sender: msg.sender
-        //     }))
-        // }
-
-        // Working
-        let pendingMsg = await db.Pending.findAll({
+        let pendingMessages = await db.Pending.findAll({
             where: {
                 recipient: user
             },
@@ -144,11 +121,8 @@ export async function deleteAndChangeStatus (user) {
 
         var pendingMsgIds = []
 
-        if(pendingMsg || pendingMsg.length>0) {
-            pendingMsg.map( msg => pendingMsgIds.push(msg.dataValues.message_id))
-        }
-
-        if(pendingMsgIds.length>0) {
+        if(pendingMessages && pendingMessages.length>0) {
+            pendingMessages.map( msg => pendingMsgIds.push(msg.dataValues.message_id))
 
             let allMessages = await db.Message.update({
                 status:1
@@ -158,14 +132,14 @@ export async function deleteAndChangeStatus (user) {
                         $in: pendingMsgIds
                     }
                 }
-            })          
+            })
 
             db.Pending.destroy({
                 where:{ 
                     recipient: user
                 }
             })
-        }        
+        }  
                     
     } catch (err) {
         // WIP

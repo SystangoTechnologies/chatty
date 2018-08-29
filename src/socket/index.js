@@ -229,17 +229,7 @@ var ioEvents = function (io) {
         }
         let channelName = JSON.parse(obj).serverName
 
-        // Check if recipient is connected to the current server
-        if (channelName === serverName) {
-          let tempSocket = localActiveUsersMap.get(data.recipient.toLowerCase())
-          if (tempSocket) {
-            // emit message directly to client
-            tempSocket.emit('addMessage', message)
-          }
-        } else {
-          // publish message on the redis channel to specific server
-          io.redisPublishChannel.publish(channelName, JSON.stringify(message))
-        }
+        io.redisPublishChannel.publish(channelName, JSON.stringify(message))
       })
     })
   });
