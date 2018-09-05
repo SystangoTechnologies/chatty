@@ -1,4 +1,5 @@
 import db from './../models/index'
+import config from "./../config";
 
 // Persisting one to one messages
 export async function persistOneToOneMsg (sender, recipient, data) {
@@ -85,14 +86,22 @@ export async function getChatHistory(data, currentUser) {
         // Arranging users lexicographically
         let user1 = (data.peer < currentUser) ? data.peer : currentUser,
         user2 = (data.peer > currentUser) ? data.peer : currentUser
+
+
+        let limit = (data.noOfRecordsPerPage)? data.noOfRecordsPerPage : 100 // number of records per page
+        let offset = 0
+        let page = (data.page)? data.page : 1 // page number
+        offset = limit * (page - 1)
  
         let peerConversation =  await db.Peer_conversation.findAll({
+            
             where: {
                 user1: user1,
                 user2: user2
             },
              include: [{
-                 model: db.Message
+                 model: db.Message,
+                 duplicating: false
              }],
              attributes: {
                 include: [[db.Sequelize.col('Messages.data'), 'data'],
@@ -100,8 +109,9 @@ export async function getChatHistory(data, currentUser) {
                    [db.Sequelize.col('Messages.created_at'), 'created_at']
                 ]
             },
-            order: db.Sequelize.col('Messages.created_at'),
-            // limit: data.messageCount,
+            order: [[db.Sequelize.col('Messages.created_at'), 'DESC']],
+            limit: limit,
+            offset: offset,
             raw: true
          })
  

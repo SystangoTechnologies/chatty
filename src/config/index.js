@@ -13,7 +13,8 @@ var init = function () {
         dialect: process.env.DB_DIALECT
       },
       sessionSecret: process.env.SESSION_SECRET,
-      echoSentMessage: process.env.ECHO_SENT_MESSAGE
+      echoSentMessage: process.env.ECHO_SENT_MESSAGE,
+      noOfRecordsPerPage: process.env.NO_OF_RECORDS_PER_PAGE
     }
   } else {
     return require('./config.json')

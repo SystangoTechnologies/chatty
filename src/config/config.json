@@ -7,5 +7,6 @@
 		"dialect": "mysql"
 	},
 	"echoSentMessage" : true,
+	"noOfRecordsPerPage": 100,
 	"sessionSecret": "<RandomString>"
 }

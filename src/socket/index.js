@@ -108,7 +108,8 @@ var ioEvents = function (io) {
 
       // data = {
       //   peer: 'xyz',
-      //   messageCount: 10
+      //   noOfRecordsPerPage: 50,
+      //   page: 1
       // }
       let msg = await  utility.getChatHistory(data, this.request.user)   
       socket.emit('addChatHistoryMessages', msg)
