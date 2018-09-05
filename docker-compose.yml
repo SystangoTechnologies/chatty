@@ -18,6 +18,7 @@ services:
       - DB_PORT=${CHAT_DB_PORT}
       - DB_NAME=${CHAT_DB_NAME}
       - DB_DIALECT=${CHAT_DB_DIALECT}
+      - ECHO_SENT_MESSAGE=${ECHO_SENT_MESSAGE}
       - SERVER_NAME='ChatServer_server1'
     command: forever server.js
     depends_on:
