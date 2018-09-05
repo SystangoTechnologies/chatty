@@ -12,7 +12,8 @@ var init = function () {
         name: process.env.DB_NAME,
         dialect: process.env.DB_DIALECT
       },
-      sessionSecret: process.env.SESSION_SECRET
+      sessionSecret: process.env.SESSION_SECRET,
+      echoSentMessage: process.env.ECHO_SENT_MESSAGE
     }
   } else {
     return require('./config.json')

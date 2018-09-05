@@ -1,5 +1,6 @@
 // 'use strict'
 import * as utility from './../utility/index'
+import config from "./../config";
 
 let serverName = process.env.SERVER_NAME || 'ChatServer_server1'
 
@@ -73,10 +74,16 @@ var ioEvents = function (io) {
       // Set username through with the message was sent (sender)
       data.sender = this.request.user
 
-      // Persist one to one Message in async way
-      utility.persistOneToOneMsg(data.sender, data.recipient, data.data)
+    let echoAndDeleteFunctionality = config.echoSentMessage
+    let message = ''
+    if(echoAndDeleteFunctionality){
+      message = await utility.persistOneToOneMsg(data.sender, data.recipient, data.data)
+    } else {
+      message = await utility.persistOneToOneMsg(data.sender, data.recipient, data.data)
+    }
 
-      sendMessage(data)
+     // Persist one to one Message in async way 
+      sendMessage(data, message.id)
     })
 
     // Get all the pending message of current user
@@ -147,6 +154,36 @@ var ioEvents = function (io) {
       let data = await utility.getinboxMessages(this.request.user)
       socket.emit('addInboxMessages', data)
     })
+
+    socket.on('deleteMessage', async function (data) {
+      await utility.deleteMessages(this.request.user, data)
+      let deleteMessage = {
+        messageId: data.messageId,
+        sender: this.request.user,
+        recipient: data.recipient
+      }
+      socket.emit('messageDeleted', deleteMessage)
+
+      io.redisCache.hget('OnlineUsers', data.recipient.toLowerCase(), async function (_err, obj) {
+        if(!obj){
+          return
+        }
+
+        let channelName = JSON.parse(obj).serverName
+
+        // Emit messageDeleted to peer
+        if (channelName === serverName) {
+          let tempSocket = localActiveUsersMap.get(data.recipient.toLowerCase())
+          if (tempSocket) {
+            // emit message directly to client
+            tempSocket.emit('messageDeleted', deleteMessage)
+          }
+        } else {
+          // publish message on the redis channel to specific server
+          io.redisPublishChannel.publish(channelName, JSON.stringify(message))
+        }
+      })
+    })
     
   
     // Utility methods for sockets events
@@ -165,7 +202,7 @@ var ioEvents = function (io) {
     }
 
     // sends message to socket clients
-    let sendMessage = function (data) {
+    let sendMessage = function (data, messageId) {
       // Get the server name of the client (recipient)
       io.redisCache.hget('OnlineUsers', data.recipient.toLowerCase(), async function (_err, obj) {
         if(!obj){
@@ -173,6 +210,7 @@ var ioEvents = function (io) {
         }
         
         let message = {
+          id : ( messageId )? messageId : 'N/A',
           event: 'addMessage',
           sender: data.sender,
           recipient: data.recipient,
@@ -180,6 +218,11 @@ var ioEvents = function (io) {
           data: data.data,
           created_at: new Date()
         }
+
+        if( config.echoSentMessage ){
+          socket.emit('addMessage', message)
+        }
+
         let channelName = JSON.parse(obj).serverName
 
         // Check if recipient is connected to the current server
@@ -286,5 +329,7 @@ var init = function (app) {
   // The server object will be then used to list to a port number
   return server
 }
-
+ 
 module.exports = init
+
+

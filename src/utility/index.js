@@ -21,6 +21,8 @@ export async function persistOneToOneMsg (sender, recipient, data) {
             message_id: msg.dataValues.id
         })
 
+        return msg
+
     } catch(err){
         console.log(err)
     }
@@ -190,6 +192,15 @@ export async function getinboxMessages (user) {
         console.log('err', err)
     }
    
+}
+
+export async function deleteMessages(user, message){
+    db.Message.destroy({
+        where:{ 
+            sender: user,
+            id: message.messageId
+        }
+    })
 }
 
 // get only 

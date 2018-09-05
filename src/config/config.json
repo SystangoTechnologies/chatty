@@ -6,5 +6,6 @@
 		"name": "chatserver",
 		"dialect": "mysql"
 	},
+	"echoSentMessage" : true,
 	"sessionSecret": "<RandomString>"
 }

@@ -46,7 +46,9 @@
    	<div id="message_area" style="margin-left: 18%; margin-right: 18%; display: none;" >
 			<button type="button" class="btn btn-primary msg-persistance" style="float: right; display: none;"">On record</button>
    		<div id="chat-user-name" style="display: none"></div>
-   		<p class="lead chat-user">Inbox messages</p>
+		   <p class="lead chat-user">Inbox messages</p>
+		<div id="messagess">
+		</div>
 	    <ul id="messages">
 	    </ul>
 			<div class='user-is-typing'  style="display: none;"><i>user is typing .....<i></div>
@@ -202,9 +204,10 @@
 
 				socket.on('addMessage', function(msg){
 						console.log(msg);
-					if(msg.type === 'text' && ((msg.sender === $('#chat-user-name').text()) || $('#chat-user-name').text() == "" || msg.sender === 'server')){
+					if(msg.type === 'text' && ((msg.sender === $('#chat-user-name').text()) || $('#chat-user-name').text() == "" || msg.sender === 'server' || msg.sender === username)){
 							var time = new Date(msg.created_at);
-							$('#messages').append($('<li>').text( msg.sender + ' : ' + msg.data).append($('<sub style=\'color: #28a745;\'>').text( time.getHours()+':' + time.getMinutes() )));
+							$('#messages').append($('<li class=\'chat-messages\' id=' + msg.id + '>').text( msg.sender + ' : ' + msg.data).append($('<sub style=\'color: #28a745;\'>').text( time.getHours()+':' + time.getMinutes() )));
+							// $('#messagess').append("<div class=\"media text-muted pt-3\"> <p class='media-body pb-3 mb-0 small lh-125 border-bottom border-gray'> <strong class='d-block text-gray-dark'>${msg.sender}</strong>Donec id elit non mi porta gravida at eget metus. Fusce dapibus, tellus ac cursus commodo, tortor mauris condimentum nibh, ut fermentum massa justo sit amet risus.</p></div>");
 							window.scrollTo(0, document.body.scrollHeight);
 					} else if(msg.type === 'isTyping'){
 						console.log('isTyping');
@@ -240,6 +243,11 @@
 					socket.emit('ackReceivedPendingMessages');			
 				});
 
+				
+				socket.on('messageDeleted', function(data){
+					console.log('messageDeleted = ' + data);
+				})
+
 				socket.on('addChatHistoryMessages', function(data){
 					for(var msg of data) {
 						var time = new Date(msg.created_at);
@@ -274,6 +282,17 @@
 						$(this).text("Off record")
 					} else {
 						$(this).text("On record")
+					}
+				});
+			
+				$(document).on('click','.chat-messages',function(){
+					if (confirm("Sure !!!! You wana delete this message")){
+						data = {
+							messageId: this.id,
+							sender: $('#chat-user-name').text(),
+							recipient: username
+						}
+						socket.emit('deleteMessage', data)
 					}
 				});
 		
