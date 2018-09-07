@@ -44,14 +44,14 @@
 	 <br>
 	 <br>
    	<div id="message_area" style="margin-left: 18%; margin-right: 18%; display: none;" >
-			<button type="button" class="btn btn-primary msg-persistance" style="float: right; display: none;"">On record</button>
+			<button type="button" class="btn btn-primary msg-persistance" style="float: right; display: none;">On record</button>
    		<div id="chat-user-name" style="display: none"></div>
 		   <p class="lead chat-user">Inbox messages</p>
 		<div id="messagess">
 		</div>
 	    <ul id="messages">
 	    </ul>
-			<div class='user-is-typing'  style="display: none;"><i>user is typing .....<i></div>
+			<div class='user-is-typing'  style="display: none;"><i>user is typing .....</i></div>
 			<div class="message-input-div" style="display: none;" >
 				<div class="input-group mb-3" style="float: left; margin-left: 25%; max-width: 50%;">
 				<input type="text" class="form-control msg-box" placeholder="Message" aria-label="Message" aria-describedby="basic-addon2">
@@ -62,14 +62,14 @@
 		</div>
 	</div>
 
-    <script src="https://cdn.socket.io/socket.io-1.2.0.js"></script>
+    <script src="js/socket.io-1.2.0.js"></script>
     <script src="https://code.jquery.com/jquery-1.11.1.js"></script>
     <script>
       $(function () {
 				// Enter IP/Dns on the server
 				// var socket = io('http://baseball.draft2teams.sockets.staging.strat-o-matic.com/users', { transports: ['websocket'] });
 				// var parentServerSocket = io('http://baseball.draft2teams.sockets.staging.strat-o-matic.com/socket.io/userss?transport=websocket&token=xyz');
-				var socket = io('http://baseball.draft2teams.sockets.staging.strat-o-matic.com/users', { transports: ['websocket'] });
+				var socket = io('http://127.0.0.1:6004/users?application=predictor', { transports: ['websocket'] });
 				// var socket = io('http://127.0.0.1:6003/users', { transports: ['websocket'] });
 				let username;
       			let userLogedIn = false;
@@ -112,7 +112,7 @@
 					$('#logout_btn').show();
 					$('#message_area').show();
 					setTimeout(function(){ $('#login-success').hide(); }, 1000);
-					socket.emit('getPendingMessages', username)
+					// socket.emit('getPendingMessages', username)
 					$('#socket-disconnected').hide();
 					$('#socket-disconnected-info').hide();
 					// socket.emit('getInboxMessages')
@@ -240,7 +240,7 @@
 							window.scrollTo(0, document.body.scrollHeight);
 						// }
 					}
-					socket.emit('ackReceivedPendingMessages');			
+					// socket.emit('ackReceivedPendingMessages');			
 				});
 
 				

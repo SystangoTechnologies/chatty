@@ -13,19 +13,24 @@ let localActiveUsersMap = new Map()
 var ioEvents = function (io) {
   // Users namespace
   io.of('/users').on('connection', function (socket) {
+
+    let app = socket.handshake.query.application
+
     // It will detect the Socket disconnection, change the user's status in database and remove users from active list
     socket.on('disconnect', async function () {
       if (socket.request.user) {
         let userName = (socket.request.user) ? socket.request.user : ''
 
+        socket.leave(app);
+
         // Delete user from active user list
-        io.redisCache.hdel('OnlineUsers', userName.toLowerCase())
+        io.redisCache.hdel('OnlineUsers' + '_' + app, userName.toLowerCase())
 
         // Delete user from localActiveUsersMap
-        localActiveUsersMap.delete(socket.request.user.toLowerCase())
+        localActiveUsersMap.delete(socket.request.user.toLowerCase() + '_' + app)
 
         // Get all active users
-        let activeUsersName = await getActiveUsersName()
+        let activeUsersName = await getActiveUsersName(app)
 
         socket.emit('activeUsersList', activeUsersName)
         socket.broadcast.emit('activeUsersList', activeUsersName)
@@ -44,24 +49,35 @@ var ioEvents = function (io) {
       }
 
       // Adding username and its last active time on redis cache
-      io.redisCache.hmset('OnlineUsers', userName.toLowerCase(), JSON.stringify(userData))
+      io.redisCache.hmset('OnlineUsers' + '_' + app, userName.toLowerCase(), JSON.stringify(userData))
 
       // Adding user name to activeUserMap
-      localActiveUsersMap.set(userName.toLowerCase(), socket)
+      localActiveUsersMap.set(userName.toLowerCase() + '_' + app, socket)
+
+      socket.join(app)
 
       socket.emit('loginsuccess')
 
-      let activeUsersName = await getActiveUsersName()
+      let activeUsersName = await getActiveUsersName(app)
 
       socket.emit('activeUsersList', activeUsersName)
-      socket.broadcast.emit('activeUsersList', activeUsersName)
+      io.to(app).emit('activeUsersList', activeUsersName);
+
+      //socket.broadcast.emit('activeUsersList', activeUsersName)
+
+      // Get Pending messages
+      let msg = await  utility.getPendingMessages(app, this.request.user)   
+      socket.emit('addPendingMessages', msg)
+
+      // Delete message from pending tables and change message status
+      await utility.deleteAndChangeStatus(app, this.request.user)
     })
 
     // Sends messages to clients
     socket.on('sendMessage', async function (data) {
       // Set username through with the message was sent (sender)
       data.sender = this.request.user
-      sendMessage(data)
+      sendMessage(app, data)
     })
 
     // Persist message and sends messages to clients
@@ -74,16 +90,18 @@ var ioEvents = function (io) {
       // Set username through with the message was sent (sender)
       data.sender = this.request.user
 
-    let echoAndDeleteFunctionality = config.echoSentMessage
-    let message = ''
-    if(echoAndDeleteFunctionality){
-      message = await utility.persistOneToOneMsg(data.sender, data.recipient, data.data)
-    } else {
-      message = await utility.persistOneToOneMsg(data.sender, data.recipient, data.data)
-    }
+      let echoAndDeleteFunctionality = config.echoSentMessage
 
-     // Persist one to one Message in async way 
-      sendMessage(data, message.id)
+      let message
+
+      if(echoAndDeleteFunctionality){
+        message = await utility.persistOneToOneMsg(app, data.sender, data.recipient, data.data)
+      } else {
+        message = await utility.persistOneToOneMsg(app, data.sender, data.recipient, data.data)
+      }
+
+      // Persist one to one Message in async way 
+      sendMessage(app, data, message.id)
     })
 
     // Get all the pending message of current user
@@ -95,10 +113,11 @@ var ioEvents = function (io) {
         return
       }
 
-      let msg = await  utility.getPendingMessages(this.request.user)   
+      let msg = await  utility.getPendingMessages(app, this.request.user)   
       socket.emit('addPendingMessages', msg)
     })
 
+    // Get Chat History
     socket.on('getChatHistory', async function (data) {
        // If users is not logged in
        if(!this.request.user){
@@ -111,7 +130,7 @@ var ioEvents = function (io) {
       //   noOfRecordsPerPage: 50,
       //   page: 1
       // }
-      let msg = await  utility.getChatHistory(data, this.request.user)   
+      let msg = await  utility.getChatHistory(app, data, this.request.user)   
       socket.emit('addChatHistoryMessages', msg)
     })
 
@@ -123,7 +142,7 @@ var ioEvents = function (io) {
         return
       }
 
-      let status = await utility.deleteAndChangeStatus(this.request.user)
+      let status = await utility.deleteAndChangeStatus(app, this.request.user)
     })
 
     // Gives list of user chats and latest message for the each chat record 
@@ -134,7 +153,7 @@ var ioEvents = function (io) {
         return
       }
 
-      let data = await utility.getinboxMessages(this.request.user)
+      let data = await utility.getinboxMessages(app, this.request.user)
        // If users is not logged in
        if(!this.request.user){
         socket.emit('loginRequired', '')
@@ -152,20 +171,22 @@ var ioEvents = function (io) {
         return
       }
       
-      let data = await utility.getinboxMessages(this.request.user)
+      let data = await utility.getinboxMessages(app, this.request.user)
       socket.emit('addInboxMessages', data)
     })
 
     socket.on('deleteMessage', async function (data) {
       await utility.deleteMessages(this.request.user, data)
+      
       let deleteMessage = {
         messageId: data.messageId,
         sender: this.request.user,
-        recipient: data.recipient
+        recipient: data.recipient,
+        application: app
       }
       socket.emit('messageDeleted', deleteMessage)
 
-      io.redisCache.hget('OnlineUsers', data.recipient.toLowerCase(), async function (_err, obj) {
+      io.redisCache.hget('OnlineUsers' + '_' + app, data.recipient.toLowerCase(), async function (_err, obj) {
         if(!obj){
           return
         }
@@ -174,7 +195,7 @@ var ioEvents = function (io) {
 
         // Emit messageDeleted to peer
         if (channelName === serverName) {
-          let tempSocket = localActiveUsersMap.get(data.recipient.toLowerCase())
+          let tempSocket = localActiveUsersMap.get(data.recipient.toLowerCase() + '_' + app)
           if (tempSocket) {
             // emit message directly to client
             tempSocket.emit('messageDeleted', deleteMessage)
@@ -188,10 +209,10 @@ var ioEvents = function (io) {
     
   
     // Utility methods for sockets events
-    let getActiveUsersName = function () {
+    let getActiveUsersName = function (application) {
       return new Promise(function (resolve, reject) {
         // Get all active users
-        io.redisCache.hgetall('OnlineUsers', async function (_err, users) {
+        io.redisCache.hgetall('OnlineUsers' + '_' + application, async function (_err, users) {
           let activeUsersName = []
           for (var element in users) {
             activeUsersName.push(element)
@@ -203,9 +224,9 @@ var ioEvents = function (io) {
     }
 
     // sends message to socket clients
-    let sendMessage = function (data, messageId) {
+    let sendMessage = function (application, data, messageId) {
       // Get the server name of the client (recipient)
-      io.redisCache.hget('OnlineUsers', data.recipient.toLowerCase(), async function (_err, obj) {
+      io.redisCache.hget('OnlineUsers' + '_' + application, data.recipient.toLowerCase(), async function (_err, obj) {
         if(!obj){
           return
         }
@@ -217,7 +238,8 @@ var ioEvents = function (io) {
           recipient: data.recipient,
           type: data.type,
           data: data.data,
-          created_at: new Date()
+          created_at: new Date(),
+          application: application
         }
 
         if( config.echoSentMessage ){
@@ -228,7 +250,7 @@ var ioEvents = function (io) {
 
         // Check if recipient is connected to the current server
         if (channelName === serverName) {
-          let tempSocket = localActiveUsersMap.get(data.recipient.toLowerCase())
+          let tempSocket = localActiveUsersMap.get(data.recipient.toLowerCase() + '_' + application)
           if (tempSocket) {
             // emit message directly to client
             tempSocket.emit('addMessage', message)
@@ -242,6 +264,9 @@ var ioEvents = function (io) {
   })
 
   io.of('/').on('connection', function(socket) {
+    
+    let app = socket.handshake.query.application
+
     if (socket.handshake.query.token !== 'hgQaPKevgEkwV2wK' ){
       return
     }
@@ -259,7 +284,7 @@ var ioEvents = function (io) {
       utility.sendAndPersistMsg( data.sender, data.peer, data.recipient, data.data)
 
       // Get the server name of the client (recipient)
-      io.redisCache.hget('OnlineUsers', data.recipient.toLowerCase(), async function (_err, obj) {
+      io.redisCache.hget('OnlineUsers' + '_' + app, data.recipient.toLowerCase(), async function (_err, obj) {
         if(!obj){
           return
         }
@@ -269,7 +294,8 @@ var ioEvents = function (io) {
           recipient: data.recipient,
           type: data.type,
           data: data.data,
-          created_at: new Date()
+          created_at: new Date(),
+          application: app
         }
         let channelName = JSON.parse(obj).serverName
 
@@ -280,9 +306,10 @@ var ioEvents = function (io) {
 
   // Receives messages published on redis for the client(recievers) connected to the current server
   io.messageListener.on('message', function (channel, message) {
-    let socket = localActiveUsersMap.get(JSON.parse(message).recipient)
+    let msg = JSON.parse(message)
+    let socket = localActiveUsersMap.get(msg.recipient + '_' + msg.application)
     if (socket) {
-      socket.emit('addMessage', JSON.parse(message))
+      socket.emit('addMessage', msg)
     }
   })
 

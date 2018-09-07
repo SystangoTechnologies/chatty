@@ -17,12 +17,18 @@ module.exports = function(sequelize, DataTypes) {
         },
         encryption_key: {
             type: Sequelize.STRING
-        }
+        },
+        application: {
+            type: Sequelize.STRING
+        },
+        blocked: {
+            type: Sequelize.STRING
+        },
     }, {
         indexes: [
           {
             unique: true,
-            fields: ['user1', 'user2']
+            fields: ['user1', 'user2', 'application']
           }
         ]
       }, {
