@@ -14,8 +14,8 @@ var ioEvents = function (io) {
   // Users namespace
   io.of('/users').on('connection', function (socket) {
 
-    let app = socket.handshake.query.application
-
+    let app = (socket.handshake.query.application)? socket.handshake.query.application : 'default'
+    
     // It will detect the Socket disconnection, change the user's status in database and remove users from active list
     socket.on('disconnect', async function () {
       if (socket.request.user) {
@@ -248,7 +248,7 @@ var ioEvents = function (io) {
 
   io.of('/').on('connection', function(socket) {
     
-    let app = socket.handshake.query.application
+    let app = (socket.handshake.query.application)? socket.handshake.query.application : 'default'
 
     if (socket.handshake.query.token !== 'hgQaPKevgEkwV2wK' ){
       return
