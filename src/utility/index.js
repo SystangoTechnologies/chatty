@@ -125,6 +125,8 @@ export async function getChatHistory(app, data, currentUser) {
             offset: offset,
             raw: true
          })
+         
+         peerConversation = peerConversation.reverse();
  
          return peerConversation
          

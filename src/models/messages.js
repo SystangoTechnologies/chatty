@@ -21,6 +21,9 @@ module.exports = function(sequelize, DataTypes) {
         status: {
             type: Sequelize.INTEGER
         },
+        clientGeneratedId: {
+            type: Sequelize.STRING
+        },
         peer_conversation_id: {
             type: DataTypes.UUID
         }

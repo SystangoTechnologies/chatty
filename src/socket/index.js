@@ -33,7 +33,8 @@ var ioEvents = function (io) {
         let activeUsersName = await getActiveUsersName(app)
 
         socket.emit('activeUsersList', activeUsersName)
-        socket.broadcast.emit('activeUsersList', activeUsersName)
+        socket.broadcast.to(app).emit('activeUsersList', activeUsersName);
+        // socket.broadcast.emit('activeUsersList', activeUsersName)
      }
     })
 
@@ -61,8 +62,7 @@ var ioEvents = function (io) {
       let activeUsersName = await getActiveUsersName(app)
 
       socket.emit('activeUsersList', activeUsersName)
-      io.to(app).emit('activeUsersList', activeUsersName);
-
+      socket.broadcast.to(app).emit('activeUsersList', activeUsersName);
       //socket.broadcast.emit('activeUsersList', activeUsersName)
 
       // Get Pending messages
@@ -77,7 +77,7 @@ var ioEvents = function (io) {
     socket.on('sendMessage', async function (data) {
       // Set username through with the message was sent (sender)
       data.sender = this.request.user
-      sendMessage(app, data)
+      sendMessage(app, data, false)
     })
 
     // Persist message and sends messages to clients
@@ -97,11 +97,11 @@ var ioEvents = function (io) {
       if(echoAndDeleteFunctionality){
         message = await utility.persistOneToOneMsg(app, data.sender, data.recipient, data.data)
       } else {
-        message = await utility.persistOneToOneMsg(app, data.sender, data.recipient, data.data)
+        message = utility.persistOneToOneMsg(app, data.sender, data.recipient, data.data)
       }
 
       // Persist one to one Message in async way 
-      sendMessage(app, data, message.id)
+      sendMessage(app, data, true, message.id)
     })
 
     // Get all the pending message of current user
@@ -143,24 +143,6 @@ var ioEvents = function (io) {
       }
 
       let status = await utility.deleteAndChangeStatus(app, this.request.user)
-    })
-
-    // Gives list of user chats and latest message for the each chat record 
-    socket.on('getinboxMessages', async function () {
-       // If users is not logged in
-       if(!this.request.user){
-        socket.emit('loginRequired', '')
-        return
-      }
-
-      let data = await utility.getinboxMessages(app, this.request.user)
-       // If users is not logged in
-       if(!this.request.user){
-        socket.emit('loginRequired', '')
-        return
-      }
-
-      socket.emit('addInboxMessages', data)
     })
 
     // Gives list of user chats and latest message for the each chat record 
@@ -210,6 +192,7 @@ var ioEvents = function (io) {
   
     // Utility methods for sockets events
     let getActiveUsersName = function (application) {
+      console.log(application)
       return new Promise(function (resolve, reject) {
         // Get all active users
         io.redisCache.hgetall('OnlineUsers' + '_' + application, async function (_err, users) {
@@ -224,7 +207,7 @@ var ioEvents = function (io) {
     }
 
     // sends message to socket clients
-    let sendMessage = function (application, data, messageId) {
+    let sendMessage = function (application, data, persist, messageId) {
       // Get the server name of the client (recipient)
       io.redisCache.hget('OnlineUsers' + '_' + application, data.recipient.toLowerCase(), async function (_err, obj) {
         if(!obj){
@@ -242,7 +225,7 @@ var ioEvents = function (io) {
           application: application
         }
 
-        if( config.echoSentMessage ){
+        if( config.echoSentMessage && persist ){
           socket.emit('addMessage', message)
         }
 
