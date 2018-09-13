@@ -44,7 +44,9 @@
 	 <br>
 	 <br>
    	<div id="message_area" style="margin-left: 18%; margin-right: 18%; display: none;" >
-			<button type="button" class="btn btn-primary msg-persistance" style="float: right; display: none;">On record</button>
+			<button type="button" class="btn btn-danger block-user" style="float: right; margin-left: 2%; display: none;">Block User</button>
+			&nbsp;
+			<button type="button" class="btn btn-primary msg-persistance" style="float: right; display: none; margin-left: 2%;">On record</button>
    		<div id="chat-user-name" style="display: none"></div>
 		   <p class="lead chat-user">Inbox messages</p>
 		<div id="messagess">
@@ -69,8 +71,8 @@
 				// Enter IP/Dns on the server
 				// var socket = io('http://baseball.draft2teams.sockets.staging.strat-o-matic.com/users', { transports: ['websocket'] });
 				// var parentServerSocket = io('http://baseball.draft2teams.sockets.staging.strat-o-matic.com/socket.io/userss?transport=websocket&token=xyz');
-				var socket = io('http://baseball.draft2teams.sockets.staging.strat-o-matic.com/users?application=draft2teams', { transports: ['websocket'] });
-				// var socket = io('http://127.0.0.1:6003/users', { transports: ['websocket'] });
+				var socket = io('http://baseball.draft2teams.sockets.staging.strat-o-matic.com/users?application=demo', { transports: ['websocket'] });
+				// var socket = io('http://127.0.0.1:6003/users?application=predictor', { transports: ['websocket'] });
 				let username;
       			let userLogedIn = false;
 
@@ -115,7 +117,7 @@
 					// socket.emit('getPendingMessages', username)
 					$('#socket-disconnected').hide();
 					$('#socket-disconnected-info').hide();
-					// socket.emit('getInboxMessages')
+					socket.emit('getInboxMessages')
 				});
 
 
@@ -157,23 +159,32 @@
 						if(text.trim().length <= 0){
 							return
 						}
-						let recipient = $('#chat-user-name').text()
-						let data = {
-							recipient: recipient,
-							type: 'text',
-							data: text
-						}
 
-						$('.msg-box').val('');
-						var time = new Date();
-						$('#messages').append($('<li style="text-align: right;">').text(username + ' : ' + data.data + "  ").append($('<sub style=\'color: #28a745;\'>').text( time.getHours()+':' + time.getMinutes() )));
-						
-						let msgType = $('.msg-persistance').text()
-						if(msgType == 'Off record'){
-							socket.emit('sendMessage', data)
-						} else {
-							socket.emit('sendMessageAndPersist', data)
-						}
+					// wip
+					var blockedStatus = $('.block-user').text();
+
+					if(blockedStatus == 'Unblock User'){
+						alert('Blocked');
+						return
+					}
+
+					let recipient = $('#chat-user-name').text()
+					let data = {
+						recipient: recipient,
+						type: 'text',
+						data: text
+					}
+
+					$('.msg-box').val('');
+					var time = new Date();
+					$('#messages').append($('<li style="text-align: right;">').text(username + ' : ' + data.data + "  ").append($('<sub style=\'color: #28a745;\'>').text( time.getHours()+':' + time.getMinutes() )));
+					
+					let msgType = $('.msg-persistance').text()
+					if(msgType == 'Off record'){
+						socket.emit('sendMessage', data)
+					} else {
+						socket.emit('sendMessageAndPersist', data)
+					}
 						
 					}
 				});
@@ -183,6 +194,15 @@
 					if(text.trim().length <= 0){
 							return
 					}
+
+					// wip
+					var blockedStatus = $('.block-user').text();
+
+					if(blockedStatus == 'Unblock User'){
+						alert('Blocked');
+						return
+					}
+
 					let toUser = $('#chat-user-name').text()
 					let data = {
 								recipient: toUser,
@@ -203,7 +223,8 @@
 				});
 
 				socket.on('addMessage', function(msg){
-						console.log(msg);
+						console.log(msg);					
+
 					if(msg.type === 'text' && ((msg.sender === $('#chat-user-name').text()) || $('#chat-user-name').text() == "" || msg.sender === 'server' || msg.sender === username)){
 							var time = new Date(msg.created_at);
 							$('#messages').append($('<li class=\'chat-messages\' id=' + msg.id + '>').text( msg.sender + ' : ' + msg.data).append($('<sub style=\'color: #28a745;\'>').text( time.getHours()+':' + time.getMinutes() )));
@@ -248,8 +269,22 @@
 					console.log('messageDeleted = ' + data);
 				})
 
+				socket.on('userBlocked', function(data){
+					console.log('messageDeleted = ' + data);
+					if(data.user == $('#chat-user-name').text())
+					$('.block-user').text("Unblock User")
+				})
+
+				socket.on('userUnblocked', function(data){
+					if(data.user == $('#chat-user-name').text())
+					$('.block-user').text("Block User")
+				})
+
+
+
 				socket.on('addChatHistoryMessages', function(data){
-					for(var msg of data) {
+					console.log('addChatHistoryMessages');
+					for(var msg of data.messages) {
 						var time = new Date(msg.created_at);
 						if(msg.sender === $('#chat-user-name').text() || msg.sender === 'server'){							
 							$('#messages').append($('<li>').text( msg.sender + ' : ' + msg.data + "  ").append($('<sub style=\'color: #28a745;\'>').text( time.getHours()+':' + time.getMinutes() )));
@@ -259,7 +294,11 @@
 						} else {
 
 						}
-					}				
+					}
+					if (data.state === 'blocked'){
+						$('#messages').append($('<li style="text-align: center;">').text('Converstion is Blocked'));
+						$('.block-user').text("Unblock User")
+					}			
 				});
 
 				$(document).on('click','.active-user-list',function(){
@@ -268,11 +307,15 @@
 					$('#messages').text('')
 					$('.message-input-div').show();
 					$('.msg-persistance').show();
+					$('.block-user').show();
+					
 					$('.chat-user').append('Chatting with <i>' + this.id +'</i>');
 					let data = {
 						peer: this.id,
-						messageCount: 10
+						noOfRecordsPerPage: 10,
+						page: 2
 					}
+	  
 					socket.emit('getChatHistory', data)		
 				});
 
@@ -282,6 +325,21 @@
 						$(this).text("Off record")
 					} else {
 						$(this).text("On record")
+					}
+				});
+
+				$(document).on('click','.block-user',function(){
+					var buttonStatus = $(this).text();
+
+					let data = {
+							user: $('#chat-user-name').text()
+					}
+
+					if(buttonStatus == 'Block User'){
+						socket.emit('blockUser', data)
+					} else {
+						// $(this).text("Block User")
+						socket.emit('unblockUser', data)
 					}
 				});
 			
@@ -301,6 +359,16 @@
 						console.log("Handler for .focus() called." );
 						let text = $('.msg-box').val();
 						let toUser = $('#chat-user-name').text()
+
+						
+					// wip
+					var blockedStatus = $('.block-user').text();
+
+					if(blockedStatus == 'Unblock User'){
+						alert('Blocked');
+						return
+					}
+
 						let data = {
 							recipient: toUser,
 							type: 'isTyping',
@@ -311,13 +379,21 @@
 
 				$( ".msg-box" ).focusout(function() {
 					console.log("Handler for .focusout() called." );
-						let text = $('.msg-box').val();
-						let toUser = $('#chat-user-name').text()
-						let data = {
-							recipient: toUser,
-							type: 'doneTyping',
-							data: text
-						}
+
+					// wip
+					var blockedStatus = $('.block-user').text();
+
+					if(blockedStatus == 'Unblock User'){
+						alert('Blocked');
+					}	
+
+					let text = $('.msg-box').val();
+					let toUser = $('#chat-user-name').text()
+					let data = {
+						recipient: toUser,
+						type: 'doneTyping',
+						data: text
+					}
 					socket.emit('sendMessage', data)
 				});	
     });

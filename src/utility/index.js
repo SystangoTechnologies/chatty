@@ -1,5 +1,5 @@
 import db from './../models/index'
-import config from "./../config";
+import config from "./../../config";
 
 // Persisting one to one messages
 export async function persistOneToOneMsg (app, sender, recipient, data) {
@@ -30,11 +30,11 @@ export async function persistOneToOneMsg (app, sender, recipient, data) {
 }
 
 // Message sent by servers
-export async function sendAndPersistMsg(sender, peer, recipient, data) {
+export async function sendAndPersistMsg(app, sender, peer, recipient, data) {
     try{
 
         // Getting the conversation Id 
-        let conversation = await getConversation(peer, recipient)
+        let conversation = await getConversation(app, peer, recipient)
     
         let msg = await db.Message.create({
             data: data,
@@ -98,7 +98,7 @@ export async function getChatHistory(app, data, currentUser) {
         user2 = (data.peer > currentUser) ? data.peer : currentUser
 
 
-        let limit = (data.noOfRecordsPerPage)? data.noOfRecordsPerPage : 100 // number of records per page
+        let limit = (data.noOfRecordsPerPage)? data.noOfRecordsPerPage : 2 // number of records per page
         let offset = 0
         let page = (data.page)? data.page : 1 // page number
         offset = limit * (page - 1)
@@ -125,10 +125,15 @@ export async function getChatHistory(app, data, currentUser) {
             offset: offset,
             raw: true
          })
-         
-         peerConversation = peerConversation.reverse();
+
+         let historyMessages = {
+            state: (peerConversation[0].blocked === '')? 'active' : 'blocked',
+            blockedBy: (user1 == peerConversation[0].blocked)? user2 : user1,
+            currentPage: page,
+            messages: peerConversation.reverse()
+         }
  
-         return peerConversation
+         return historyMessages
          
      } catch(err){
          console.log(err)
@@ -294,4 +299,55 @@ async function getConversationIds (app, user) {
 
     }
     
+}
+
+
+export async function blockUser (app, user, data) {
+    try{
+         // Arranging users lexicographically
+         let user1 = (user < data.user) ? user : data.user,
+         user2 = (user > data.user) ? user : data.user
+
+        let peerConversation =  await db.Peer_conversation.update({
+                blocked: data.user
+            },{
+                where: {
+                    user1: user1,
+                    user2: user2,
+                    application: app
+                }
+        })
+
+        return true
+
+    } catch(err){
+        return false
+    }
+}
+
+export async function unblockUser (app, user, data) {
+    try{
+        if(user == data.user){
+            return false
+        }
+         // Arranging users lexicographically
+         let user1 = (user < data.user) ? user : data.user,
+         user2 = (user > data.user) ? user : data.user
+
+        let peerConversation =  await db.Peer_conversation.update({
+                blocked: ''
+            },{
+                where: {
+                    user1: user1,
+                    user2: user2,
+                    application: app,
+                    blocked: data.user
+                }
+        })
+
+        return true
+
+    } catch(err){
+
+    }
 }

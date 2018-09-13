@@ -1,6 +1,6 @@
 // 'use strict'
 import * as utility from './../utility/index'
-import config from "./../config";
+import config from "./../../config";
 
 let serverName = process.env.SERVER_NAME || 'ChatServer_server1'
 
@@ -117,6 +117,47 @@ var ioEvents = function (io) {
       socket.emit('addPendingMessages', msg)
     })
 
+    // Block User
+    socket.on('blockUser', async function (data) {
+      
+      // If users is not logged in
+       if(!this.request.user){
+        socket.emit('loginRequired', '')
+        return
+      }
+
+      // data = {
+      //    user: 'xyz'
+      // }
+      let status = await  utility.blockUser(app, this.request.user, data)
+
+      if(status){
+        data.blockedBy = this.request.user
+        socket.emit('userBlocked', data)
+      }
+     
+    })
+
+     // Block User
+     socket.on('unblockUser', async function (data) {
+      
+      // If users is not logged in
+       if(!this.request.user){
+        socket.emit('loginRequired', '')
+        return
+      }
+
+      // data = {
+      //    user: 'xyz'
+      // }
+      let status = await  utility.unblockUser(app, this.request.user, data)
+
+      if(status){
+        data.unblockedBy = this.request.user
+        socket.emit('userUnblocked', data)
+      }
+    })
+
     // Get Chat History
     socket.on('getChatHistory', async function (data) {
        // If users is not logged in
@@ -192,7 +233,6 @@ var ioEvents = function (io) {
   
     // Utility methods for sockets events
     let getActiveUsersName = function (application) {
-      console.log(application)
       return new Promise(function (resolve, reject) {
         // Get all active users
         io.redisCache.hgetall('OnlineUsers' + '_' + application, async function (_err, users) {
@@ -264,7 +304,7 @@ var ioEvents = function (io) {
       } */
      
       // Persist one to one Message in async way
-      utility.sendAndPersistMsg( data.sender, data.peer, data.recipient, data.data)
+      utility.sendAndPersistMsg(app, data.sender, data.peer, data.recipient, data.data)
 
       // Get the server name of the client (recipient)
       io.redisCache.hget('OnlineUsers' + '_' + app, data.recipient.toLowerCase(), async function (_err, obj) {

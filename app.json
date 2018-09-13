@@ -1,7 +1,0 @@
-{
-  "name": "Chatty",
-  "description": "A Real Time Chat Application built using Node.js, Express, Mongoose & Socket.io",
-  "repository": "https://github.com/SystangoTechnologies/chatty.git ",
-  "logo": "",
-  "keywords": ["real-time", "chat", "nodejs", "express", "mongoose", "socketio", "docker"]
-}
