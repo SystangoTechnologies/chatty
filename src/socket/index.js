@@ -95,9 +95,9 @@ var ioEvents = function (io) {
       let message
 
       if(echoAndDeleteFunctionality){
-        message = await utility.persistOneToOneMsg(app, data.sender, data.recipient, data.data)
+        message = await utility.persistOneToOneMsg(app, data)
       } else {
-        message = utility.persistOneToOneMsg(app, data.sender, data.recipient, data.data)
+        message = utility.persistOneToOneMsg(app, data)
       }
 
       // Persist one to one Message in async way 
@@ -199,10 +199,14 @@ var ioEvents = function (io) {
     })
 
     socket.on('deleteMessage', async function (data) {
-      await utility.deleteMessages(this.request.user, data)
+      let status = await utility.deleteMessages(this.request.user, data)
       
+      if(!status){
+        return
+      }
+
       let deleteMessage = {
-        messageId: data.messageId,
+        clientGeneratedId: data.clientGeneratedId,
         sender: this.request.user,
         recipient: data.recipient,
         application: app

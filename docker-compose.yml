@@ -2,6 +2,7 @@ version: '2'
 services:
   cluster1:
     build: .
+    restart: always
     ports:
       - "6001:3000"
     volumes:
@@ -26,6 +27,7 @@ services:
       - redis
   cluster2:
     build: .
+    restart: always
     ports:
       - "6002:3000"
     volumes:
@@ -50,6 +52,7 @@ services:
       - redis
   redis:
     image: "redis:alpine"
+    restart: always
     ports:
       - "6379:6379"
     environment:

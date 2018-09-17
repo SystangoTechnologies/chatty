@@ -2,36 +2,49 @@ import db from './../models/index'
 import config from "./../../config";
 
 // Persisting one to one messages
-export async function persistOneToOneMsg (app, sender, recipient, data) {
+export async function persistOneToOneMsg (app, data) {
+    let transaction
     try{
+        // Creating transaction 
+        transaction = await db.sequelize.transaction()
 
         // Getting the conversation Id 
-        let conversation = await getConversation(app, sender, recipient)
+        let conversation = await getConversation(app, data.sender, data.recipient)
     
         let msg = await db.Message.create({
-            data: data,
-            sender: sender,
+            data: data.data,
+            sender: data.sender,
             url: '',
             status: 0,
+            clientGeneratedId: data.clientGeneratedId,
             peer_conversation_id: conversation.id
-        })
+        }, { transaction: transaction })
 
         // Storing messages reference in Pending Table
         let pendingMsg = await db.Pending.create({
-            recipient: recipient,
+            recipient: data.recipient,
             message_id: msg.dataValues.id
-        })
+        }, { transaction: transaction })
+
+        // Commiting the transaction
+        await transaction.commit()
 
         return msg
 
     } catch(err){
+        // Rollback the transaction
+        await transaction.rollback()
         console.log(err)
     }
 }
 
 // Message sent by servers
 export async function sendAndPersistMsg(app, sender, peer, recipient, data) {
+    let transaction
     try{
+
+        // Creating transaction 
+        transaction = await db.sequelize.transaction()
 
         // Getting the conversation Id 
         let conversation = await getConversation(app, peer, recipient)
@@ -42,15 +55,20 @@ export async function sendAndPersistMsg(app, sender, peer, recipient, data) {
             url: '',
             status: 0,
             peer_conversation_id: conversation.id
-        })
+        }, { transaction: transaction })
 
         // Storing messages reference in Pending Table
         let pendingMsg = await db.Pending.create({
             recipient: recipient,
             message_id: msg.dataValues.id
-        })
+        }, { transaction: transaction })
+
+         // Commiting the transaction
+         await transaction.commit()
 
     } catch(err){
+        // Rollback the transaction
+        await transaction.rollback()
         console.log(err)
     }
 }
@@ -98,7 +116,7 @@ export async function getChatHistory(app, data, currentUser) {
         user2 = (data.peer > currentUser) ? data.peer : currentUser
 
 
-        let limit = (data.noOfRecordsPerPage)? data.noOfRecordsPerPage : 2 // number of records per page
+        let limit = (data.noOfRecordsPerPage)? data.noOfRecordsPerPage : 50 // number of records per page
         let offset = 0
         let page = (data.page)? data.page : 1 // page number
         offset = limit * (page - 1)
@@ -117,7 +135,8 @@ export async function getChatHistory(app, data, currentUser) {
              attributes: {
                 include: [[db.Sequelize.col('Messages.data'), 'data'],
                    [db.Sequelize.col('Messages.sender'), 'sender'],
-                   [db.Sequelize.col('Messages.created_at'), 'created_at']
+                   [db.Sequelize.col('Messages.created_at'), 'created_at'],
+                   [db.Sequelize.col('Messages.clientGeneratedId'), 'clientGeneratedId']
                 ]
             },
             order: [[db.Sequelize.col('Messages.created_at'), 'DESC']],
@@ -126,13 +145,17 @@ export async function getChatHistory(app, data, currentUser) {
             raw: true
          })
 
-         let historyMessages = {
-            state: (peerConversation[0].blocked === '')? 'active' : 'blocked',
-            blockedBy: (user1 == peerConversation[0].blocked)? user2 : user1,
-            currentPage: page,
-            messages: peerConversation.reverse()
+         let historyMessages
+
+         if(peerConversation.length){
+            historyMessages = {
+                state: (!peerConversation[0].blocked)? 'active' : 'blocked',
+                blockedBy: (user1 == peerConversation[0].blocked)? user2 : user1,
+                currentPage: page,
+                messages: peerConversation.reverse()
+             }
          }
- 
+         
          return historyMessages
          
      } catch(err){
@@ -141,18 +164,14 @@ export async function getChatHistory(app, data, currentUser) {
 }
 
 export async function deleteAndChangeStatus (app, user) {
+    let transaction
     try {
+
+       // Creating transaction 
+       transaction = await db.sequelize.transaction()
+
         // Get all the IDs wrt to user and application
        let pendingMessages = await getPendingMessages(app, user)
-
-
-
-        // let pendingMessages = await db.Pending.findAll({
-        //     where: {
-        //         recipient: user
-        //     },
-        //     attributes: ['message_id']
-        // })
 
         let msgIds = []
         let pendingMsgIds = []
@@ -169,7 +188,7 @@ export async function deleteAndChangeStatus (app, user) {
                         $in: msgIds
                     }
                 }
-            })
+            }, { transaction: transaction })
 
             db.Pending.destroy({
                 where: {
@@ -177,10 +196,16 @@ export async function deleteAndChangeStatus (app, user) {
                         $in: pendingMsgIds
                     }
                 }
-            })
-        }  
+            }, { transaction: transaction })
+        }
+
+        // Commiting the transaction
+        await transaction.commit()
                     
     } catch (err) {
+        // Rollback the transaction
+        await transaction.rollback()
+        
         // WIP
         console.log(err);
     }
@@ -233,12 +258,21 @@ export async function getinboxMessages (app, user) {
 }
 
 export async function deleteMessages(user, message){
-    db.Message.destroy({
-        where:{ 
-            sender: user,
-            id: message.messageId
-        }
-    })
+    let status
+    try{
+        let status = await db.Message.destroy({
+            where: {
+                sender: user,
+                clientGeneratedId: {
+                    $in: message.clientGeneratedId
+                }
+            }
+        })
+        return true
+    } catch(err){
+        return false
+        console.log(err)
+    }
 }
 
 // get only 
