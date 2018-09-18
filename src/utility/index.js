@@ -249,7 +249,17 @@ export async function getinboxMessages (app, user) {
             // group: db.Sequelize.col('Peer_conversation.id'),
             raw: true
         })
-        let result = await getFirstMsg(peerConversation)
+
+       
+        var conversationIds = new Set();
+
+        if(peerConversation && peerConversation.length>0) {
+            peerConversation.map( conversation => conversationIds.add(conversation.id))
+        }
+
+        let pendingMessage = await getPendingMessageCount (app, user, [... conversationIds])
+
+        let result = await getFirstMsg(peerConversation, pendingMessage)
         return result
     } catch(err){
         console.log('err', err)
@@ -274,67 +284,6 @@ export async function deleteMessages(user, message){
         console.log(err)
     }
 }
-
-// get only 
-async function getFirstMsg(data) {
-    let msg = []
-    let latestMsg = new Map();
-    for( let element in data){
-        latestMsg.set(data[element].id, data[element])
-    }
-    msg = Array.from(latestMsg.values());
-    return msg
-}
-
-// Get conversation ID
-async function getConversation (app, sender, recipient) {
-    try{
-        // Arranging users lexicographically
-        let user1 = (recipient < sender) ? recipient : sender,
-            user2 = (recipient > sender) ? recipient : sender
-
-        let peerConversation =  await db.Peer_conversation.findOrCreate({
-            where: {
-                user1: user1,
-                user2: user2,
-                application: app
-            }, 
-            defaults: {
-                encryption_key: Math.random().toString(36).replace('0.', ''),
-                user1: user1,
-                user2: user2,
-                application: app
-            }
-        })
-        
-        return peerConversation[0].dataValues;
-    } catch(err){
-        console.log(err)
-    }
-    
-}
-
-// Get conversation ID
-async function getConversationIds (app, user) {
-    try{
-        let peerConversationIds =  await db.Peer_conversation.findAll({
-            where: {
-                [db.Sequelize.Op.or]: [{user1: user}, {user2: user}],
-                application: app
-            }
-        })
-
-        let ids = []
-        if(peerConversationIds && peerConversationIds.length>0) {
-            peerConversationIds.map( conversation => ids.push(conversation.dataValues.id))
-        }
-        return ids;
-    } catch(err){
-
-    }
-    
-}
-
 
 export async function blockUser (app, user, data) {
     try{
@@ -383,5 +332,116 @@ export async function unblockUser (app, user, data) {
 
     } catch(err){
 
+    }
+}
+
+// get only latest message
+async function getFirstMsg(data, pendingMessage) {
+    let msgArray = []
+    let latestMsg = new Map();
+    let msg
+
+    // Get First message
+    for( let element in data){
+        msg = data[element]
+        msg.pendingCount = 0
+        latestMsg.set(msg.id, msg)
+    }
+
+    // Add Pending count
+    let tempMsg
+    for( let element in pendingMessage){
+        tempMsg =  latestMsg.get(pendingMessage[element].peer_conversation_id)
+        tempMsg.pendingCount = pendingMessage[element].pendingCount
+        latestMsg.set(tempMsg.id, tempMsg)
+    }
+
+    msgArray = Array.from(latestMsg.values());
+    return msgArray
+}
+
+// Get conversation ID
+async function getConversation (app, sender, recipient) {
+    try{
+        // Arranging users lexicographically
+        let user1 = (recipient < sender) ? recipient.toLowerCase() : sender.toLowerCase(),
+            user2 = (recipient > sender) ? recipient.toLowerCase() : sender.toLowerCase()
+
+        let peerConversation =  await db.Peer_conversation.findOrCreate({
+            where: {
+                user1: user1,
+                user2: user2,
+                application: app
+            }, 
+            defaults: {
+                encryption_key: Math.random().toString(36).replace('0.', ''),
+                user1: user1,
+                user2: user2,
+                application: app
+            }
+        })
+        
+        return peerConversation[0].dataValues;
+    } catch(err){
+        console.log(err)
+    }
+    
+}
+
+// Get conversation ID
+async function getConversationIds (app, user) {
+    try{
+        let peerConversationIds =  await db.Peer_conversation.findAll({
+            where: {
+                [db.Sequelize.Op.or]: [{user1: user}, {user2: user}],
+                application: app
+            }
+        })
+
+        let ids = []
+        if(peerConversationIds && peerConversationIds.length>0) {
+            peerConversationIds.map( conversation => ids.push(conversation.dataValues.id))
+        }
+        return ids;
+    } catch(err){
+
+    }
+    
+}
+
+async function getPendingMessageCount (app, user, conversationIds) {
+    try{
+       // check sender and recipient
+       if(!user){
+           return false;
+       }
+
+       let msgs
+       
+        if(conversationIds && conversationIds.length > 0){
+            // Fetching messages for the current user
+            msgs = await db.Message.findAll({
+                where: {
+                    peer_conversation_id: {
+                        $in: conversationIds
+                    }
+                },
+                include: [{
+                    model: db.Pending,
+                    where: {
+                        recipient: user  
+                    },
+                }],
+                attributes: { 
+                    include: [[db.sequelize.fn("COUNT", db.sequelize.col("Pendings.id")), "pendingCount"]] 
+                },
+                group: db.Sequelize.col('Message.peer_conversation_id'),
+                raw: true
+            })
+        }
+        return msgs
+        
+    } catch(err){
+        console.log(err)
     }
 }

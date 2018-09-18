@@ -66,11 +66,11 @@ var ioEvents = function (io) {
       //socket.broadcast.emit('activeUsersList', activeUsersName)
 
       // Get Pending messages
-      let msg = await  utility.getPendingMessages(app, this.request.user)   
-      socket.emit('addPendingMessages', msg)
+      // let msg = await  utility.getPendingMessages(app, this.request.user)   
+      // socket.emit('addPendingMessages', msg)
 
       // Delete message from pending tables and change message status
-      await utility.deleteAndChangeStatus(app, this.request.user)
+      // await utility.deleteAndChangeStatus(app, this.request.user)
     })
 
     // Sends messages to clients
@@ -105,17 +105,17 @@ var ioEvents = function (io) {
     })
 
     // Get all the pending message of current user
-    socket.on('getPendingMessages', async function () {
+    // socket.on('getPendingMessages', async function () {
       
-      // If users is not logged in
-       if(!this.request.user){
-        socket.emit('loginRequired', '')
-        return
-      }
+    //   // If users is not logged in
+    //    if(!this.request.user){
+    //     socket.emit('loginRequired', '')
+    //     return
+    //   }
 
-      let msg = await  utility.getPendingMessages(app, this.request.user)   
-      socket.emit('addPendingMessages', msg)
-    })
+    //   let msg = await  utility.getPendingMessages(app, this.request.user)   
+    //   socket.emit('addPendingMessages', msg)
+    // })
 
     // Block User
     socket.on('blockUser', async function (data) {
@@ -176,15 +176,15 @@ var ioEvents = function (io) {
     })
 
 
-    socket.on('ackReceivedPendingMessages', async function () {
-       // If users is not logged in
-       if(!this.request.user){
-        socket.emit('loginRequired', '')
-        return
-      }
+    // socket.on('ackReceivedPendingMessages', async function () {
+    //    // If users is not logged in
+    //    if(!this.request.user){
+    //     socket.emit('loginRequired', '')
+    //     return
+    //   }
 
-      let status = await utility.deleteAndChangeStatus(app, this.request.user)
-    })
+    //   // let status = await utility.deleteAndChangeStatus(app, this.request.user)
+    // })
 
     // Gives list of user chats and latest message for the each chat record 
     socket.on('getInboxMessages', async function () {
