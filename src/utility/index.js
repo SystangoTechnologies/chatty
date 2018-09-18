@@ -5,6 +5,11 @@ import config from "./../../config";
 export async function persistOneToOneMsg (app, data) {
     let transaction
     try{
+        // Check message is being sent to different user
+        if(data.sender.toLowerCase() === data.recipient.toLowerCase()){
+            return
+        }
+
         // Creating transaction 
         transaction = await db.sequelize.transaction()
 
@@ -487,7 +492,10 @@ async function getConversation (app, sender, recipient) {
 
 // Get conversation ID
 async function getConversationIds (app, user) {
+
     try{
+        user = user.toLowerCase()
+
         let peerConversationIds =  await db.Peer_conversation.findAll({
             where: {
                 [db.Sequelize.Op.or]: [{user1: user}, {user2: user}],
@@ -514,6 +522,7 @@ async function getPendingMessageCount (app, user, conversationIds) {
        }
 
        let msgs
+       user = user.toLowerCase()
        
         if(conversationIds && conversationIds.length > 0){
             // Fetching messages for the current user
