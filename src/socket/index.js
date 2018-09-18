@@ -118,6 +118,21 @@ var ioEvents = function (io) {
     // })
 
     // Block User
+    socket.on('updatePendingMessages', async function (data) {
+      
+      // If users is not logged in
+       if(!this.request.user){
+        socket.emit('loginRequired', '')
+        return
+      }
+
+      // data = {
+      //    peer: 'xyz'
+      // }
+     await utility.changePendingMessageStatus(app, this.request.user, data)     
+    })
+
+    // Block User
     socket.on('blockUser', async function (data) {
       
       // If users is not logged in
@@ -173,6 +188,8 @@ var ioEvents = function (io) {
       // }
       let msg = await  utility.getChatHistory(app, data, this.request.user)   
       socket.emit('addChatHistoryMessages', msg)
+
+     await utility.changePendingMessageStatus(app, this.request.user, data)
     })
 
 

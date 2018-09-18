@@ -13,7 +13,7 @@ export async function persistOneToOneMsg (app, data) {
     
         let msg = await db.Message.create({
             data: data.data,
-            sender: data.sender,
+            sender: data.sender.toLowerCase(),
             url: '',
             status: 0,
             clientGeneratedId: data.clientGeneratedId,
@@ -22,7 +22,7 @@ export async function persistOneToOneMsg (app, data) {
 
         // Storing messages reference in Pending Table
         let pendingMsg = await db.Pending.create({
-            recipient: data.recipient,
+            recipient: data.recipient.toLowerCase(),
             message_id: msg.dataValues.id
         }, { transaction: transaction })
 
@@ -51,7 +51,7 @@ export async function sendAndPersistMsg(app, sender, peer, recipient, data) {
     
         let msg = await db.Message.create({
             data: data,
-            sender: sender,
+            sender: sender.toLowerCase(),
             url: '',
             status: 0,
             peer_conversation_id: conversation.id
@@ -59,7 +59,7 @@ export async function sendAndPersistMsg(app, sender, peer, recipient, data) {
 
         // Storing messages reference in Pending Table
         let pendingMsg = await db.Pending.create({
-            recipient: recipient,
+            recipient: recipient.toLowerCase(),
             message_id: msg.dataValues.id
         }, { transaction: transaction })
 
@@ -95,7 +95,7 @@ export async function getPendingMessages (app, user) {
                 include: [{
                     model: db.Pending,
                     where: {
-                        recipient: user  
+                        recipient: user.toLowerCase()  
                     },
                 }],
                 order: [['created_at', 'DESC']],
@@ -111,6 +111,9 @@ export async function getPendingMessages (app, user) {
 
 export async function getChatHistory(app, data, currentUser) {
     try{
+        currentUser = currentUser.toLowerCase()
+        data.peer = data.peer.toLowerCase()
+
         // Arranging users lexicographically
         let user1 = (data.peer < currentUser) ? data.peer : currentUser,
         user2 = (data.peer > currentUser) ? data.peer : currentUser
@@ -163,7 +166,7 @@ export async function getChatHistory(app, data, currentUser) {
      }
 }
 
-export async function deleteAndChangeStatus (app, user) {
+export async function deleteAndChangeStatus (app, user, data) {
     let transaction
     try {
 
@@ -212,6 +215,87 @@ export async function deleteAndChangeStatus (app, user) {
 
 }
 
+export async function changePendingMessageStatus (app, user, data) {
+    let transaction
+    let msgIds = []
+    let pendingMsgIds = []
+    let pendingMessages
+
+    try {
+
+        user = user.toLowerCase()
+        data.peer = data.peer.toLowerCase()
+
+       // Creating transaction 
+       transaction = await db.sequelize.transaction()
+
+        // Arranging users lexicographically
+        let user1 = (user < data.peer) ? user : data.peer,
+              user2 = (user > data.peer) ? user : data.peer
+
+       let peerConversation =  await db.Peer_conversation.findAll({
+            where: {
+                user1: user1,
+                user2: user2,
+                application: app
+            }
+       })
+
+       if(peerConversation.length){
+            // Get All pending messages wrt conversation id  
+            pendingMessages = await db.Message.findAll({
+                where: {
+                    peer_conversation_id: peerConversation[0].dataValues.id
+                },
+                include: [{
+                    model: db.Pending,
+                    where: {
+                        recipient: user  
+                    },
+                }],
+                order: [['created_at', 'DESC']],
+                raw: true
+            })
+
+            if(pendingMessages && pendingMessages.length>0) {
+                pendingMessages.map( msg => msgIds.push(msg.id))
+                pendingMessages.map( msg => pendingMsgIds.push(msg['Pendings.id']))
+
+                // Update message status
+                let allMessages = await db.Message.update({
+                    status:1
+                }, {
+                    where: {
+                        id: {
+                            $in: msgIds
+                        }
+                    }
+                }, { transaction: transaction })
+
+                // Remove message from the pending table
+                db.Pending.destroy({
+                    where: {
+                        id: {
+                            $in: pendingMsgIds
+                        }
+                    }
+                }, { transaction: transaction })
+            }
+       }     
+
+        // Commiting the transaction
+        await transaction.commit()
+                    
+    } catch (err) {
+        // Rollback the transaction
+        await transaction.rollback()
+        
+        // WIP
+        console.log(err);
+    }
+
+}
+
 export async function getinboxMessages (app, user) {
     try {
         // let peerConversation =  await db.Peer_conversation.findAll({
@@ -228,6 +312,8 @@ export async function getinboxMessages (app, user) {
         //     raw: true
         // })
         attributes: []
+
+        user = user.toLowerCase()
 
         let peerConversation =  await db.Peer_conversation.findAll({
             where: {
@@ -269,6 +355,8 @@ export async function getinboxMessages (app, user) {
 
 export async function deleteMessages(user, message){
     let status
+    user = user.toLowerCase()
+
     try{
         let status = await db.Message.destroy({
             where: {
@@ -287,6 +375,9 @@ export async function deleteMessages(user, message){
 
 export async function blockUser (app, user, data) {
     try{
+        user = user.toLowerCase()
+        data.user = data.user.toLowerCase()
+
          // Arranging users lexicographically
          let user1 = (user < data.user) ? user : data.user,
          user2 = (user > data.user) ? user : data.user
@@ -310,6 +401,9 @@ export async function blockUser (app, user, data) {
 
 export async function unblockUser (app, user, data) {
     try{
+        user = user.toLowerCase()
+        data.user = data.user.toLowerCase()
+
         if(user == data.user){
             return false
         }
@@ -363,9 +457,12 @@ async function getFirstMsg(data, pendingMessage) {
 // Get conversation ID
 async function getConversation (app, sender, recipient) {
     try{
+        sender = sender.toLowerCase()
+        recipient = recipient.toLowerCase()
+
         // Arranging users lexicographically
-        let user1 = (recipient < sender) ? recipient.toLowerCase() : sender.toLowerCase(),
-            user2 = (recipient > sender) ? recipient.toLowerCase() : sender.toLowerCase()
+        let user1 = (recipient < sender) ? recipient : sender,
+            user2 = (recipient > sender) ? recipient : sender
 
         let peerConversation =  await db.Peer_conversation.findOrCreate({
             where: {
