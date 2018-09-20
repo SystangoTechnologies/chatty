@@ -283,7 +283,8 @@ var ioEvents = function (io) {
           type: data.type,
           data: data.data,
           created_at: new Date(),
-          application: application
+          application: application,
+          clientGeneratedId: (data.clientGeneratedId)? data.clientGeneratedId : 'N/A'
         }
 
         if( config.echoSentMessage && persist ){

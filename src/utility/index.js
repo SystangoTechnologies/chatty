@@ -107,7 +107,9 @@ export async function getPendingMessages (app, user) {
                 raw: true
             })
         }
-        return msgs
+        if (msgs.length){
+            return msgs
+        }        
         
     } catch(err){
         console.log(err)
@@ -316,8 +318,7 @@ export async function getinboxMessages (app, user) {
         //     group: db.Sequelize.col('Peer_conversation.id'),
         //     raw: true
         // })
-        attributes: []
-
+        
         user = user.toLowerCase()
 
         let peerConversation =  await db.Peer_conversation.findAll({
@@ -343,15 +344,18 @@ export async function getinboxMessages (app, user) {
 
        
         var conversationIds = new Set();
+        let result = ''
 
-        if(peerConversation && peerConversation.length>0) {
+        if(peerConversation && peerConversation.length>0 && peerConversation[0].created_at) {
             peerConversation.map( conversation => conversationIds.add(conversation.id))
+            
+            let pendingMessage = await getPendingMessageCount (app, user, [... conversationIds])
+
+            result = await getFirstMsg(peerConversation, pendingMessage)
         }
 
-        let pendingMessage = await getPendingMessageCount (app, user, [... conversationIds])
-
-        let result = await getFirstMsg(peerConversation, pendingMessage)
         return result
+
     } catch(err){
         console.log('err', err)
     }
