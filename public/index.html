@@ -72,7 +72,7 @@
 				// var socket = io('http://baseball.draft2teams.sockets.staging.strat-o-matic.com/users', { transports: ['websocket'] });
 				// var parentServerSocket = io('http://baseball.draft2teams.sockets.staging.strat-o-matic.com/socket.io/userss?transport=websocket&token=xyz');
 				var socket = io('http://baseball.draft2teams.sockets.staging.strat-o-matic.com/users?application=demo', { transports: ['websocket'] });
-				// var socket = io('http://127.0.0.1:6003/users?application=predictor', { transports: ['websocket'] });
+				// var socket = io('http://127.0.0.1:3000/users', { transports: ['websocket'] });
 				let username;
       			let userLogedIn = false;
 
@@ -96,7 +96,7 @@
 				$('#login_signup_btn').click(function()
 				{
 					username = $('#username').val();
-					if(/^[A-z]+$/.test(username)){
+					if(/^[a-z0-9]+$/.test(username)){
 						socket.emit('login', username);
 					} else {
 						$('#login-failed').show();
@@ -172,7 +172,8 @@
 					let data = {
 						recipient: recipient,
 						type: 'text',
-						data: text
+						data: text,
+						clientGeneratedId: ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c => (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16))
 					}
 
 					$('.msg-box').val('');
@@ -207,7 +208,8 @@
 					let data = {
 								recipient: toUser,
 								type: 'text',
-								data: text
+								data: text,
+								clientGeneratedId: ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c => (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16))
 						}
 
 					$('.msg-box').val('');
@@ -315,6 +317,12 @@
 						noOfRecordsPerPage: 10,
 						page: 2
 					}
+
+					let updatePendingStatus = {
+						peer: this.id
+					}
+
+					socket.emit('updatePendingMessages', updatePendingStatus)
 	  
 					socket.emit('getChatHistory', data)		
 				});
