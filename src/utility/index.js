@@ -344,15 +344,14 @@ export async function getinboxMessages (app, user) {
 
        
         var conversationIds = new Set();
-        let result = ''
 
-        if(peerConversation && peerConversation.length>0 && peerConversation[0].created_at) {
+        if(peerConversation && peerConversation.length>0) {
             peerConversation.map( conversation => conversationIds.add(conversation.id))
-            
-            let pendingMessage = await getPendingMessageCount (app, user, [... conversationIds])
-
-            result = await getFirstMsg(peerConversation, pendingMessage)
         }
+
+        let pendingMessage = await getPendingMessageCount (app, user, [... conversationIds])
+
+        let result = await getFirstMsg(peerConversation, pendingMessage)
 
         return result
 
