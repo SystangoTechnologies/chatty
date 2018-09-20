@@ -140,6 +140,11 @@ export async function getChatHistory(app, data, currentUser) {
             },
              include: [{
                  model: db.Message,
+                 where: {
+                    created_at: {
+                        $ne: null 
+                    }                    
+                 },
                  duplicating: false
              }],
              attributes: {
