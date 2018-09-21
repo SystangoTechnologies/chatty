@@ -238,9 +238,6 @@ export async function changePendingMessageStatus (app, user, data) {
         user = user.toLowerCase()
         data.peer = data.peer.toLowerCase()
 
-       // Creating transaction 
-       transaction = await db.sequelize.transaction()
-
         // Arranging users lexicographically
         let user1 = (user < data.peer) ? user : data.peer,
               user2 = (user > data.peer) ? user : data.peer
@@ -273,6 +270,13 @@ export async function changePendingMessageStatus (app, user, data) {
                 pendingMessages.map( msg => msgIds.push(msg.id))
                 pendingMessages.map( msg => pendingMsgIds.push(msg['Pendings.id']))
 
+                console.log('Before transaction')
+
+                // Creating transaction 
+                // transaction = await db.sequelize.transaction()
+
+                console.log('After transaction')
+
                 // Update message status
                 let allMessages = await db.Message.update({
                     status:1
@@ -282,7 +286,9 @@ export async function changePendingMessageStatus (app, user, data) {
                             $in: msgIds
                         }
                     }
-                }, { transaction: transaction })
+                })
+
+                console.log('allMessages')
 
                 // Remove message from the pending table
                 db.Pending.destroy({
@@ -291,16 +297,19 @@ export async function changePendingMessageStatus (app, user, data) {
                             $in: pendingMsgIds
                         }
                     }
-                }, { transaction: transaction })
-            }
-       }     
+                })
 
-        // Commiting the transaction
-        await transaction.commit()
+                // Commiting the transaction
+                // await transaction.commit()
+            }
+       }
+       
                     
     } catch (err) {
         // Rollback the transaction
-        await transaction.rollback()
+        if(transaction){
+           // await transaction.rollback()
+        }       
         
         // WIP
         console.log(err);
@@ -354,9 +363,10 @@ export async function getinboxMessages (app, user) {
             peerConversation.map( conversation => conversationIds.add(conversation.id))
         }
 
+
         let pendingMessage = await getPendingMessageCount (app, user, [... conversationIds])
 
-        let result = await getFirstMsg(peerConversation, pendingMessage)
+        let result = await getFirstMsg(user, peerConversation, pendingMessage)
 
         return result
 
@@ -443,7 +453,7 @@ export async function unblockUser (app, user, data) {
 }
 
 // get only latest message
-async function getFirstMsg(data, pendingMessage) {
+async function getFirstMsg(user, data, pendingMessage) {
     let msgArray = []
     let latestMsg = new Map();
     let msg
@@ -452,6 +462,7 @@ async function getFirstMsg(data, pendingMessage) {
     for( let element in data){
         msg = data[element]
         msg.pendingCount = 0
+        msg.sender = (msg.created_at)? msg.sender : (data[0].user1 == user)? msg.user2 : msg.user1 
         latestMsg.set(msg.id, msg)
     }
 
