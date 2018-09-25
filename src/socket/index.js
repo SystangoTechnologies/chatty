@@ -6,14 +6,47 @@ let serverName = process.env.SERVER_NAME || 'ChatServer_server1'
 
 let localActiveUsersMap = new Map()
 
+let gamesServerMap = new Map()
+
 /**
  * Encapsulates all code for emitting and listening to socket events
  *
  */
 var ioEvents = function (io) {
+  // Game play server
+  io.of('/gameserver').on('connection', function (socket) {
+    let app = (socket.handshake.query.application)? socket.handshake.query.application : 'default'
+    
+    socket.on('init', async function (data) {
+      console.log('Init')
+      /*
+        data = {
+          name = 'gameplay1'
+        }
+      */
+      
+      // Adding user name to gamesServerMap
+      gamesServerMap.set(data.name.toLowerCase() + '_' + app, socket)
+      socket.request.serverName = data.name.toLowerCase()
+
+    })
+
+    socket.on('disconnect', async function () {
+      if (socket.request.serverName) {
+        socket.leave(app);
+         // Delete user from localActiveUsersMap
+         gamesServerMap.delete(socket.request.serverName.toLowerCase() + '_' + app)
+      }
+    })
+
+    socket.on('autoDraftingResults', async function (data) {
+      console.log('autoDraftingResults ------->' + data )
+    })
+  })
+
   // Users namespace
   io.of('/users').on('connection', function (socket) {
-
+   
     let app = (socket.handshake.query.application)? socket.handshake.query.application : 'default'
     
     // It will detect the Socket disconnection, change the user's status in database and remove users from active list
@@ -148,7 +181,28 @@ var ioEvents = function (io) {
 
       if(status){
         data.blockedBy = this.request.user
+        data.type = 'userBlocked'
         socket.emit('userBlocked', data)
+
+        io.redisCache.hget('OnlineUsers' + '_' + app, data.user.toLowerCase(), async function (_err, obj) {
+          if(!obj){
+            return
+          }
+  
+          let channelName = JSON.parse(obj).serverName
+  
+          // Emit messageDeleted to peer
+          if (channelName === serverName) {
+            let tempSocket = localActiveUsersMap.get(data.user.toLowerCase() + '_' + app)
+            if (tempSocket) {
+              // emit message directly to client
+              tempSocket.emit('userBlocked', data)
+            }
+          } else {
+            // publish message on the redis channel to specific server
+            io.redisPublishChannel.publish(channelName, JSON.stringify(data))
+          }
+        })
       }
      
     })
@@ -169,7 +223,28 @@ var ioEvents = function (io) {
 
       if(status){
         data.unblockedBy = this.request.user
+        data.type = 'userUnblocked'
         socket.emit('userUnblocked', data)
+        
+        io.redisCache.hget('OnlineUsers' + '_' + app, data.user.toLowerCase(), async function (_err, obj) {
+          if(!obj){
+            return
+          }
+  
+          let channelName = JSON.parse(obj).serverName
+  
+          // Emit messageDeleted to peer
+          if (channelName === serverName) {
+            let tempSocket = localActiveUsersMap.get(data.user.toLowerCase() + '_' + app)
+            if (tempSocket) {
+              // emit message directly to client
+              tempSocket.emit('userBlocked', data)
+            }
+          } else {
+            // publish message on the redis channel to specific server
+            io.redisPublishChannel.publish(channelName, JSON.stringify(data))
+          }
+        })
       }
     })
 
@@ -191,17 +266,6 @@ var ioEvents = function (io) {
 
      await utility.changePendingMessageStatus(app, this.request.user, data)
     })
-
-
-    // socket.on('ackReceivedPendingMessages', async function () {
-    //    // If users is not logged in
-    //    if(!this.request.user){
-    //     socket.emit('loginRequired', '')
-    //     return
-    //   }
-
-    //   // let status = await utility.deleteAndChangeStatus(app, this.request.user)
-    // })
 
     // Gives list of user chats and latest message for the each chat record 
     socket.on('getInboxMessages', async function () {
@@ -250,7 +314,24 @@ var ioEvents = function (io) {
         }
       })
     })
-    
+
+    /*
+      Game Play 
+    */
+
+     // Gives list of user chats and latest message for the each chat record 
+    socket.on('autoDraftTeams', async function (data) {
+      // If users is not logged in
+      if(!this.request.user){
+        socket.emit('loginRequired', '')
+        return
+      }
+
+      data.user = this.request.user
+      
+      let tempSocket = gamesServerMap.get('gameplay1' + '_' + app)
+      tempSocket.emit('autoDraftTeams', data)
+    })    
   
     // Utility methods for sockets events
     let getActiveUsersName = function (application) {
@@ -354,7 +435,11 @@ var ioEvents = function (io) {
     let msg = JSON.parse(message)
     let socket = localActiveUsersMap.get(msg.recipient + '_' + msg.application)
     if (socket) {
-      socket.emit('addMessage', msg)
+      if(msg.type){
+        socket.emit(msg.type, msg)
+      } else{
+        socket.emit('addMessage', msg)
+      }
     }
   })
 
