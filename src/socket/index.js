@@ -167,7 +167,7 @@ var ioEvents = function (io) {
 
     // Block User
     socket.on('blockUser', async function (data) {
-      
+
       // If users is not logged in
        if(!this.request.user){
         socket.emit('loginRequired', '')
@@ -238,7 +238,7 @@ var ioEvents = function (io) {
             let tempSocket = localActiveUsersMap.get(data.user.toLowerCase() + '_' + app)
             if (tempSocket) {
               // emit message directly to client
-              tempSocket.emit('userBlocked', data)
+              tempSocket.emit('userUnblocked', data)
             }
           } else {
             // publish message on the redis channel to specific server
