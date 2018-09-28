@@ -15,6 +15,11 @@ module.exports = function(sequelize, DataTypes) {
         sender: {
             type: Sequelize.STRING
         },
+        type: {
+            type: Sequelize.STRING,
+            allowNull: false, 
+            defaultValue: 'text'
+        },
         url: {
             type: Sequelize.STRING
         },

@@ -270,13 +270,6 @@ export async function changePendingMessageStatus (app, user, data) {
                 pendingMessages.map( msg => msgIds.push(msg.id))
                 pendingMessages.map( msg => pendingMsgIds.push(msg['Pendings.id']))
 
-                console.log('Before transaction')
-
-                // Creating transaction 
-                // transaction = await db.sequelize.transaction()
-
-                console.log('After transaction')
-
                 // Update message status
                 let allMessages = await db.Message.update({
                     status:1
@@ -288,8 +281,6 @@ export async function changePendingMessageStatus (app, user, data) {
                     }
                 })
 
-                console.log('allMessages')
-
                 // Remove message from the pending table
                 db.Pending.destroy({
                     where: {
@@ -298,19 +289,11 @@ export async function changePendingMessageStatus (app, user, data) {
                         }
                     }
                 })
-
-                // Commiting the transaction
-                // await transaction.commit()
             }
        }
        
                     
-    } catch (err) {
-        // Rollback the transaction
-        if(transaction){
-           // await transaction.rollback()
-        }       
-        
+    } catch (err) {        
         // WIP
         console.log(err);
     }
@@ -430,9 +413,23 @@ export async function unblockUser (app, user, data) {
         if(user == data.user){
             return false
         }
-         // Arranging users lexicographically
-         let user1 = (user < data.user) ? user : data.user,
+        // Arranging users lexicographically
+        let user1 = (user < data.user) ? user : data.user,
          user2 = (user > data.user) ? user : data.user
+
+        let unblockAllowed =  await db.Peer_conversation.findAll({
+            where: {
+                user1: user1,
+                user2: user2,
+                application: app,
+                blocked: data.user
+            }
+        })
+
+        // Not allowed
+        if(!unblockAllowed.length){
+            return false
+        }
 
         let peerConversation =  await db.Peer_conversation.update({
                 blocked: ''
@@ -449,6 +446,41 @@ export async function unblockUser (app, user, data) {
 
     } catch(err){
 
+    }
+}
+
+export async function addMediaMessages(app, sender, message){
+    let transaction
+    try{
+
+        // Creating transaction 
+        transaction = await db.sequelize.transaction()
+
+        // Getting the conversation Id 
+        let conversation = await getConversation(app, sender, message.recipient)
+    
+        let msg = await db.Message.create({
+            data: message.data,
+            sender: sender.toLowerCase(),
+            url: message.url,
+            type: message.type,
+            status: 0,
+            peer_conversation_id: conversation.id
+        }, { transaction: transaction })
+
+        // Storing messages reference in Pending Table
+        let pendingMsg = await db.Pending.create({
+            recipient: message.recipient.toLowerCase(),
+            message_id: msg.dataValues.id
+        }, { transaction: transaction })
+
+         // Commiting the transaction
+         await transaction.commit()
+
+    } catch(err){
+        // Rollback the transaction
+        await transaction.rollback()
+        console.log(err)
     }
 }
 

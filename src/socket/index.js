@@ -3,9 +3,7 @@ import * as utility from './../utility/index'
 import config from "./../../config";
 
 let serverName = process.env.SERVER_NAME || 'ChatServer_server1'
-
 let localActiveUsersMap = new Map()
-
 let gamesServerMap = new Map()
 
 /**
@@ -13,22 +11,20 @@ let gamesServerMap = new Map()
  *
  */
 var ioEvents = function (io) {
+
   // Game play server
   io.of('/gameserver').on('connection', function (socket) {
     let app = (socket.handshake.query.application)? socket.handshake.query.application : 'default'
     
     socket.on('init', async function (data) {
-      console.log('Init')
       /*
         data = {
           name = 'gameplay1'
         }
-      */
-      
+      */      
       // Adding user name to gamesServerMap
       gamesServerMap.set(data.name.toLowerCase() + '_' + app, socket)
       socket.request.serverName = data.name.toLowerCase()
-
     })
 
     socket.on('disconnect', async function () {
@@ -39,9 +35,33 @@ var ioEvents = function (io) {
       }
     })
 
+    // Get results for the dll and emit the results to the clients
     socket.on('autoDraftingResults', async function (data) {
-      console.log('autoDraftingResults ------->' + data )
+      emitMessgaeToPlayers([data.user, data.peer], data, 'autoDraftingResults')
     })
+
+    //Emits messages to group of users
+    let emitMessgaeToPlayers = async function (users, data, event) {
+      for (let user in users) {
+       
+        let connectedServerName = await io.redisUtility.getServerName(app, users[user])
+
+        data.event = event
+        
+        // Check if recipient is connected to the current server
+        if (connectedServerName === serverName) {
+          let tempSocket = localActiveUsersMap.get(users[user].toLowerCase() + '_' + app)
+          if (tempSocket) {
+            // emit message directly to client
+            tempSocket.emit(event, data)
+          }
+        } else {
+          // publish message on the redis channel to specific server
+          console.log('emitMessgaeToPlayers----- ' + connectedServerName + JSON.stringify(data) )
+          io.redisPublishChannel.publish(connectedServerName, JSON.stringify(data))
+        }
+      }
+    }
   })
 
   // Users namespace
@@ -57,7 +77,7 @@ var ioEvents = function (io) {
         socket.leave(app);
 
         // Delete user from active user list
-        io.redisCache.hdel('OnlineUsers' + '_' + app, userName.toLowerCase())
+        io.redisUtility.removeClient(app, userName)
 
         // Delete user from localActiveUsersMap
         localActiveUsersMap.delete(socket.request.user.toLowerCase() + '_' + app)
@@ -66,8 +86,7 @@ var ioEvents = function (io) {
         let activeUsersName = await getActiveUsersName(app)
 
         socket.emit('activeUsersList', activeUsersName)
-        socket.broadcast.to(app).emit('activeUsersList', activeUsersName);
-        // socket.broadcast.emit('activeUsersList', activeUsersName)
+        socket.broadcast.to(app).emit('activeUsersList', activeUsersName)
      }
     })
 
@@ -83,8 +102,8 @@ var ioEvents = function (io) {
       }
 
       // Adding username and its last active time on redis cache
-      io.redisCache.hmset('OnlineUsers' + '_' + app, userName.toLowerCase(), JSON.stringify(userData))
-
+      io.redisUtility.addClient(app, userName, userData)
+      
       // Adding user name to activeUserMap
       localActiveUsersMap.set(userName.toLowerCase() + '_' + app, socket)
 
@@ -95,15 +114,7 @@ var ioEvents = function (io) {
       let activeUsersName = await getActiveUsersName(app)
 
       socket.emit('activeUsersList', activeUsersName)
-      socket.broadcast.to(app).emit('activeUsersList', activeUsersName);
-      //socket.broadcast.emit('activeUsersList', activeUsersName)
-
-      // Get Pending messages
-      // let msg = await  utility.getPendingMessages(app, this.request.user)   
-      // socket.emit('addPendingMessages', msg)
-
-      // Delete message from pending tables and change message status
-      // await utility.deleteAndChangeStatus(app, this.request.user)
+      socket.broadcast.to(app).emit('activeUsersList', activeUsersName)
     })
 
     // Sends messages to clients
@@ -123,32 +134,13 @@ var ioEvents = function (io) {
       // Set username through with the message was sent (sender)
       data.sender = this.request.user
 
-      let echoAndDeleteFunctionality = config.echoSentMessage
-
       let message
 
-      if(echoAndDeleteFunctionality){
-        message = await utility.persistOneToOneMsg(app, data)
-      } else {
-        message = utility.persistOneToOneMsg(app, data)
-      }
+      message = utility.persistOneToOneMsg(app, data)
 
       // Persist one to one Message in async way 
       sendMessage(app, data, true, message.id)
     })
-
-    // Get all the pending message of current user
-    // socket.on('getPendingMessages', async function () {
-      
-    //   // If users is not logged in
-    //    if(!this.request.user){
-    //     socket.emit('loginRequired', '')
-    //     return
-    //   }
-
-    //   let msg = await  utility.getPendingMessages(app, this.request.user)   
-    //   socket.emit('addPendingMessages', msg)
-    // })
 
     // Block User
     socket.on('updatePendingMessages', async function (data) {
@@ -162,14 +154,14 @@ var ioEvents = function (io) {
       // data = {
       //    peer: 'xyz'
       // }
-     await utility.changePendingMessageStatus(app, this.request.user, data)     
+      await utility.changePendingMessageStatus(app, this.request.user, data)     
     })
 
     // Block User
     socket.on('blockUser', async function (data) {
 
       // If users is not logged in
-       if(!this.request.user){
+      if(!this.request.user){
         socket.emit('loginRequired', '')
         return
       }
@@ -181,37 +173,20 @@ var ioEvents = function (io) {
 
       if(status){
         data.blockedBy = this.request.user
-        data.type = 'userBlocked'
+        data.event = 'userBlocked'
+        data.recipient = data.user
+
         socket.emit('userBlocked', data)
 
-        io.redisCache.hget('OnlineUsers' + '_' + app, data.user.toLowerCase(), async function (_err, obj) {
-          if(!obj){
-            return
-          }
-  
-          let channelName = JSON.parse(obj).serverName
-  
-          // Emit messageDeleted to peer
-          if (channelName === serverName) {
-            let tempSocket = localActiveUsersMap.get(data.user.toLowerCase() + '_' + app)
-            if (tempSocket) {
-              // emit message directly to client
-              tempSocket.emit('userBlocked', data)
-            }
-          } else {
-            // publish message on the redis channel to specific server
-            io.redisPublishChannel.publish(channelName, JSON.stringify(data))
-          }
-        })
-      }
-     
+        emitToPeer(app, data, 'userBlocked')
+      }     
     })
 
      // Block User
      socket.on('unblockUser', async function (data) {
       
       // If users is not logged in
-       if(!this.request.user){
+      if(!this.request.user){
         socket.emit('loginRequired', '')
         return
       }
@@ -223,35 +198,19 @@ var ioEvents = function (io) {
 
       if(status){
         data.unblockedBy = this.request.user
-        data.type = 'userUnblocked'
+        data.event = 'userUnblocked'
+        data.recipient = data.user
+
         socket.emit('userUnblocked', data)
-        
-        io.redisCache.hget('OnlineUsers' + '_' + app, data.user.toLowerCase(), async function (_err, obj) {
-          if(!obj){
-            return
-          }
-  
-          let channelName = JSON.parse(obj).serverName
-  
-          // Emit messageDeleted to peer
-          if (channelName === serverName) {
-            let tempSocket = localActiveUsersMap.get(data.user.toLowerCase() + '_' + app)
-            if (tempSocket) {
-              // emit message directly to client
-              tempSocket.emit('userUnblocked', data)
-            }
-          } else {
-            // publish message on the redis channel to specific server
-            io.redisPublishChannel.publish(channelName, JSON.stringify(data))
-          }
-        })
+
+        emitToPeer(app, data, 'userUnblocked')
       }
     })
 
     // Get Chat History
     socket.on('getChatHistory', async function (data) {
-       // If users is not logged in
-       if(!this.request.user){
+      // If users is not logged in
+      if(!this.request.user){
         socket.emit('loginRequired', '')
         return
       }
@@ -264,19 +223,44 @@ var ioEvents = function (io) {
       let msg = await  utility.getChatHistory(app, data, this.request.user)   
       socket.emit('addChatHistoryMessages', msg)
 
-     await utility.changePendingMessageStatus(app, this.request.user, data)
+      await utility.changePendingMessageStatus(app, this.request.user, data)
     })
 
     // Gives list of user chats and latest message for the each chat record 
     socket.on('getInboxMessages', async function () {
-       // If users is not logged in
-       if(!this.request.user){
+      // If users is not logged in
+      if(!this.request.user){
         socket.emit('loginRequired', '')
         return
       }
       
       let data = await utility.getinboxMessages(app, this.request.user)
       socket.emit('addInboxMessages', data)
+    })
+
+    // Gives list of user chats and latest message for the each chat record 
+    socket.on('sendMedia', async function (data) {
+      // If users is not logged in
+      if(!this.request.user){
+        socket.emit('loginRequired', '')
+        return
+      }
+
+      let message = {
+        event: 'addMessage',
+        sender: data.sender,
+        recipient: data.recipient,
+        type: data.type,
+        data: data.data,
+        created_at: new Date(),
+        application: app,
+        clientGeneratedId: (data.clientGeneratedId)? data.clientGeneratedId : 'N/A'
+      }
+
+      emitToPeer(app, message, 'addMessage')
+
+      utility.addMediaMessages(app, this.request.user, message)
+
     })
 
     socket.on('deleteMessage', async function (data) {
@@ -290,36 +274,20 @@ var ioEvents = function (io) {
         clientGeneratedId: data.clientGeneratedId,
         sender: this.request.user,
         recipient: data.recipient,
+        event: 'messageDeleted',
         application: app
       }
+
       socket.emit('messageDeleted', deleteMessage)
 
-      io.redisCache.hget('OnlineUsers' + '_' + app, data.recipient.toLowerCase(), async function (_err, obj) {
-        if(!obj){
-          return
-        }
-
-        let channelName = JSON.parse(obj).serverName
-
-        // Emit messageDeleted to peer
-        if (channelName === serverName) {
-          let tempSocket = localActiveUsersMap.get(data.recipient.toLowerCase() + '_' + app)
-          if (tempSocket) {
-            // emit message directly to client
-            tempSocket.emit('messageDeleted', deleteMessage)
-          }
-        } else {
-          // publish message on the redis channel to specific server
-          io.redisPublishChannel.publish(channelName, JSON.stringify(message))
-        }
-      })
+      emitToPeer(app, message, 'messageDeleted')
     })
 
     /*
       Game Play 
     */
 
-     // Gives list of user chats and latest message for the each chat record 
+    // Gives list of user chats and latest message for the each chat record 
     socket.on('autoDraftTeams', async function (data) {
       // If users is not logged in
       if(!this.request.user){
@@ -330,7 +298,10 @@ var ioEvents = function (io) {
       data.user = this.request.user
       
       let tempSocket = gamesServerMap.get('gameplay1' + '_' + app)
-      tempSocket.emit('autoDraftTeams', data)
+
+      if (tempSocket) {
+        tempSocket.emit('autoDraftTeams', data)
+      }      
     })    
   
     // Utility methods for sockets events
@@ -351,41 +322,20 @@ var ioEvents = function (io) {
     // sends message to socket clients
     let sendMessage = function (application, data, persist, messageId) {
       // Get the server name of the client (recipient)
-      io.redisCache.hget('OnlineUsers' + '_' + application, data.recipient.toLowerCase(), async function (_err, obj) {
-        if(!obj){
-          return
-        }
-        
-        let message = {
-          id : ( messageId )? messageId : 'N/A',
-          event: 'addMessage',
-          sender: data.sender,
-          recipient: data.recipient,
-          type: data.type,
-          data: data.data,
-          created_at: new Date(),
-          application: application,
-          clientGeneratedId: (data.clientGeneratedId)? data.clientGeneratedId : 'N/A'
-        }
 
-        if( config.echoSentMessage && persist ){
-          socket.emit('addMessage', message)
-        }
+      let message = {
+        id : ( messageId )? messageId : 'N/A',
+        event: 'addMessage',
+        sender: data.sender,
+        recipient: data.recipient,
+        type: data.type,
+        data: data.data,
+        created_at: new Date(),
+        application: application,
+        clientGeneratedId: (data.clientGeneratedId)? data.clientGeneratedId : 'N/A'
+      }
 
-        let channelName = JSON.parse(obj).serverName
-
-        // Check if recipient is connected to the current server
-        if (channelName === serverName) {
-          let tempSocket = localActiveUsersMap.get(data.recipient.toLowerCase() + '_' + application)
-          if (tempSocket) {
-            // emit message directly to client
-            tempSocket.emit('addMessage', message)
-          }
-        } else {
-          // publish message on the redis channel to specific server
-          io.redisPublishChannel.publish(channelName, JSON.stringify(message))
-        }
-      })
+      emitToPeer(app, message, 'addMessage')
     }
   })
 
@@ -409,34 +359,48 @@ var ioEvents = function (io) {
       // Persist one to one Message in async way
       utility.sendAndPersistMsg(app, data.sender, data.peer, data.recipient, data.data)
 
-      // Get the server name of the client (recipient)
-      io.redisCache.hget('OnlineUsers' + '_' + app, data.recipient.toLowerCase(), async function (_err, obj) {
-        if(!obj){
-          return
-        }
-        let message = {
-          event: 'addMessage',
-          sender: data.sender,
-          recipient: data.recipient,
-          type: data.type,
-          data: data.data,
-          created_at: new Date(),
-          application: app
-        }
-        let channelName = JSON.parse(obj).serverName
-
-        io.redisPublishChannel.publish(channelName, JSON.stringify(message))
-      })
+      let message = {
+        event: 'addMessage',
+        sender: data.sender,
+        recipient: data.recipient,
+        type: data.type,
+        data: data.data,
+        created_at: new Date(),
+        application: app
+      }
+      
+      emitToPeer(app, message, 'addMessage')
     })
-  });
+  })
+
+  //Emits messages to user
+  let emitToPeer = async function (app, data, event) {
+           
+    let connectedServerName = await io.redisUtility.getServerName(app, data.recipient)
+
+    data.event = event
+    
+    // Check if recipient is connected to the current server
+    if (connectedServerName === serverName) {
+      let tempSocket = localActiveUsersMap.get(data.recipient.toLowerCase() + '_' + app)
+      if (tempSocket) {
+        // emit message directly to client
+        tempSocket.emit(event, data)
+      }
+    } else {
+      // publish message on the redis channel to specific server
+      console.log('emitToPeer----- ' + connectedServerName + JSON.stringify(data))
+      io.redisPublishChannel.publish(connectedServerName, JSON.stringify(data))
+    }
+  }
 
   // Receives messages published on redis for the client(recievers) connected to the current server
   io.messageListener.on('message', function (channel, message) {
     let msg = JSON.parse(message)
     let socket = localActiveUsersMap.get(msg.recipient + '_' + msg.application)
     if (socket) {
-      if(msg.type){
-        socket.emit(msg.type, msg)
+      if(msg.event){
+        socket.emit(msg.event, msg)
       } else{
         socket.emit('addMessage', msg)
       }
@@ -456,6 +420,7 @@ var init = function (app) {
   var io = require('socket.io')(server, { origins: '*:*'})
   const redis = require('redis')
   const redisAdapter = require('socket.io-redis')
+  var redisUtility
 
   const port = process.env.REDIS_PORT || 6379
   const host = process.env.REDIS_HOST || '192.168.1.40'
@@ -474,6 +439,8 @@ var init = function (app) {
   io.redisCache = redisCache
   io.messageListener = messageListener
   io.redisPublishChannel = redisPublishChannel
+  io.redisUtility = require('./../utility/redis-cache')
+  io.redisUtility.init(redisCache)
 
   // WIP
   // io.redisCache.set(serverName, '', 'EX', 10)
