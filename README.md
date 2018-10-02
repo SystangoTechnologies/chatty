@@ -86,7 +86,7 @@ Your app should now be running on [localhost:3000](http://localhost:3000/).
 
 ## Contributors <a name="Contributors"></a>
 [Arpit Khandelwal](https://github.com/arpit-systango)
-[Anurag Vikram Singh](https://github.com/avsingh-systango)
+[Anurag Vikram Singh](https://www.linkedin.com/in/anuragvikramsingh/)
 
 ## License <a name="license"></a>
 Built under [MIT](http://www.opensource.org/licenses/mit-license.php) license.

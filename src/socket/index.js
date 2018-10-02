@@ -30,8 +30,8 @@ var ioEvents = function (io) {
     socket.on('disconnect', async function () {
       if (socket.request.serverName) {
         socket.leave(app);
-         // Delete user from localActiveUsersMap
-         gamesServerMap.delete(socket.request.serverName.toLowerCase() + '_' + app)
+        // Delete user from localActiveUsersMap
+        gamesServerMap.delete(socket.request.serverName.toLowerCase() + '_' + app)
       }
     })
 
@@ -142,11 +142,11 @@ var ioEvents = function (io) {
       sendMessage(app, data, true, message.id)
     })
 
-    // Block User
+    // Update pending message status
     socket.on('updatePendingMessages', async function (data) {
       
       // If users is not logged in
-       if(!this.request.user){
+      if(!this.request.user){
         socket.emit('loginRequired', '')
         return
       }
@@ -182,7 +182,7 @@ var ioEvents = function (io) {
       }     
     })
 
-     // Block User
+     // unblock User
      socket.on('unblockUser', async function (data) {
       
       // If users is not logged in
@@ -238,7 +238,7 @@ var ioEvents = function (io) {
       socket.emit('addInboxMessages', data)
     })
 
-    // Gives list of user chats and latest message for the each chat record 
+    // send media files
     socket.on('sendMedia', async function (data) {
       // If users is not logged in
       if(!this.request.user){
@@ -281,6 +281,25 @@ var ioEvents = function (io) {
       socket.emit('messageDeleted', deleteMessage)
 
       emitToPeer(app, message, 'messageDeleted')
+    })
+
+    /*
+      Group Chat
+    */
+
+    // Create Group
+    /* data = {
+        peer: 'xyz'
+      } 
+    */
+    socket.on('createGroup', async function (data) {
+      
+      // If users is not logged in
+       if(!this.request.user){
+        socket.emit('loginRequired', '')
+        return
+      }
+      await utility.createGroup(app, this.request.user, data)     
     })
 
     /*

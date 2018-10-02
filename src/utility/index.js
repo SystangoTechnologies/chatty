@@ -484,6 +484,20 @@ export async function addMediaMessages(app, sender, message){
     }
 }
 
+export async function createGroup(app, user, data){
+    try{
+        let pendingMsg = await db.Group_conversation.create({
+            name: data.name.toLowerCase(),
+            encryption_key: Math.random().toString(36).replace('0.', ''),
+            application: app,
+            owner: user
+        })
+    } catch(err){
+        // Wip
+        console.log(err)
+    }
+}
+
 // get only latest message
 async function getFirstMsg(user, data, pendingMessage) {
     let msgArray = []
