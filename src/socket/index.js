@@ -11,59 +11,6 @@ let gamesServerMap = new Map()
  *
  */
 var ioEvents = function (io) {
-
-  // Game play server
-  io.of('/gameserver').on('connection', function (socket) {
-    let app = (socket.handshake.query.application)? socket.handshake.query.application : 'default'
-    
-    socket.on('init', async function (data) {
-      /*
-        data = {
-          name = 'gameplay1'
-        }
-      */      
-      // Adding user name to gamesServerMap
-      gamesServerMap.set(data.name.toLowerCase() + '_' + app, socket)
-      socket.request.serverName = data.name.toLowerCase()
-    })
-
-    socket.on('disconnect', async function () {
-      if (socket.request.serverName) {
-        socket.leave(app);
-        // Delete user from localActiveUsersMap
-        gamesServerMap.delete(socket.request.serverName.toLowerCase() + '_' + app)
-      }
-    })
-
-    // Get results for the dll and emit the results to the clients
-    socket.on('autoDraftingResults', async function (data) {
-      emitMessgaeToPlayers([data.user, data.peer], data, 'autoDraftingResults')
-    })
-
-    //Emits messages to group of users
-    let emitMessgaeToPlayers = async function (users, data, event) {
-      for (let user in users) {
-       
-        let connectedServerName = await io.redisUtility.getServerName(app, users[user])
-
-        data.event = event
-        
-        // Check if recipient is connected to the current server
-        if (connectedServerName === serverName) {
-          let tempSocket = localActiveUsersMap.get(users[user].toLowerCase() + '_' + app)
-          if (tempSocket) {
-            // emit message directly to client
-            tempSocket.emit(event, data)
-          }
-        } else {
-          // publish message on the redis channel to specific server
-          console.log('emitMessgaeToPlayers----- ' + connectedServerName + JSON.stringify(data) )
-          io.redisPublishChannel.publish(connectedServerName, JSON.stringify(data))
-        }
-      }
-    }
-  })
-
   // Users namespace
   io.of('/users').on('connection', function (socket) {
    
