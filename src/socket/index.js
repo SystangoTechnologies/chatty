@@ -247,28 +247,7 @@ var ioEvents = function (io) {
         return
       }
       await utility.createGroup(app, this.request.user, data)     
-    })
-
-    /*
-      Game Play 
-    */
-
-    // Gives list of user chats and latest message for the each chat record 
-    socket.on('autoDraftTeams', async function (data) {
-      // If users is not logged in
-      if(!this.request.user){
-        socket.emit('loginRequired', '')
-        return
-      }
-
-      data.user = this.request.user
-      
-      let tempSocket = gamesServerMap.get('gameplay1' + '_' + app)
-
-      if (tempSocket) {
-        tempSocket.emit('autoDraftTeams', data)
-      }      
-    })    
+    })   
   
     // Utility methods for sockets events
     let getActiveUsersName = function (application) {
@@ -313,15 +292,14 @@ var ioEvents = function (io) {
       return
     }
 
-    socket.on('sendMessageToClients', async function (data) {
-      /* msg = {
+    /* data = {
         receipent = 'xyz',
         peer = 'abc',
         data = 'msg',
         type = 'text',
         sender = 'server'
-      } */
-     
+    } */
+    socket.on('sendMessageToClients', async function (data) {     
       // Persist one to one Message in async way
       utility.sendAndPersistMsg(app, data.sender, data.peer, data.recipient, data.data)
 
@@ -334,8 +312,9 @@ var ioEvents = function (io) {
         created_at: new Date(),
         application: app
       }
-      
-      emitToPeer(app, message, 'addMessage')
+
+      let connectedServerName = await io.redisUtility.getServerName(app, data.recipient)
+      io.redisPublishChannel.publish(connectedServerName, JSON.stringify(message))
     })
   })
 
@@ -355,7 +334,6 @@ var ioEvents = function (io) {
       }
     } else {
       // publish message on the redis channel to specific server
-      console.log('emitToPeer----- ' + connectedServerName + JSON.stringify(data))
       io.redisPublishChannel.publish(connectedServerName, JSON.stringify(data))
     }
   }
