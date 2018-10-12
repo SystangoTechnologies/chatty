@@ -1,5 +1,4 @@
 import db from './../models/index'
-import config from "./../../config";
 
 // Persisting one to one messages
 export async function persistOneToOneMsg (app, data) {
@@ -300,28 +299,44 @@ export async function changePendingMessageStatus (app, user, data) {
 
 }
 
-export async function getinboxMessages (app, user) {
+export async function getinboxMessages (app, user, data) {
     try {
+        let limit = (data && data.noOfRecordsPerPage)? data.noOfRecordsPerPage : 100 // number of records per page
+        let offset = 0
+        let page = (data && data.page)? data.page : 1 // page number
+        offset = limit * (page - 1)
+
+        user = user.toLowerCase()
+
         // let peerConversation =  await db.Peer_conversation.findAll({
         //     where: {
-        //         [db.Sequelize.Op.or]: [{user1: user}, {user2: user}]
+        //         [db.Sequelize.Op.or]: [{user1: user}, {user2: user}],
+        //         application: app
         //     },
         //     include: [{
         //         model: db.Message,
-        //         // order: db.Sequelize.col('Messages.created_at desc')
-        //         order: [[{model: db.Message}, 'created_at']]
+        //         duplicating: false,
+        //         order: [[db.Sequelize.col('Messages.created_at'), 'DESC']],
         //     }],
-           
+        //     attributes: {
+        //         include: [[db.Sequelize.col('Messages.data'), 'data'],
+        //         [db.Sequelize.col('Messages.sender'), 'sender'],
+        //         [db.Sequelize.col('Messages.created_at'), 'created_at']
+        //     ]},
+        //     limit: limit,
+        //     offset: offset,
         //     group: db.Sequelize.col('Peer_conversation.id'),
         //     raw: true
         // })
         
-        user = user.toLowerCase()
-
+       
         let peerConversation =  await db.Peer_conversation.findAll({
             where: {
                 [db.Sequelize.Op.or]: [{user1: user}, {user2: user}],
-                application: app
+                application: app,
+                archivedBy: {
+                    [Op.ne]: user
+                }
             },
             include: [{
                 model: db.Message
@@ -346,12 +361,19 @@ export async function getinboxMessages (app, user) {
             peerConversation.map( conversation => conversationIds.add(conversation.id))
         }
 
-
         let pendingMessage = await getPendingMessageCount (app, user, [... conversationIds])
 
         let result = await getFirstMsg(user, peerConversation, pendingMessage)
 
-        return result
+        result.sort(function(a, b){
+            if(a['Messages.created_at']  > b['Messages.created_at']){
+                return -1
+            } else {
+                return 1
+            }
+        })
+
+        return result.slice(offset, limit * page)
 
     } catch(err){
         console.log('err', err)
@@ -439,6 +461,32 @@ export async function unblockUser (app, user, data) {
                     user2: user2,
                     application: app,
                     blocked: data.user
+                }
+        })
+
+        return true
+
+    } catch(err){
+
+    }
+}
+
+export async function archiveMessage (app, user, data) {
+    try{
+        user = user.toLowerCase()
+        data.peer = data.user.toLowerCase()
+
+        // Arranging users lexicographically
+        let user1 = (user < data.peer) ? user : data.peer,
+         user2 = (user > data.peer) ? user : data.peer
+
+        let peerConversation =  await db.Peer_conversation.update({
+                archivedBy: user
+            },{
+                where: {
+                    user1: user1,
+                    user2: user2,
+                    application: app
                 }
         })
 
@@ -544,7 +592,8 @@ async function getConversation (app, sender, recipient) {
                 encryption_key: Math.random().toString(36).replace('0.', ''),
                 user1: user1,
                 user2: user2,
-                application: app
+                application: app,
+                archivedBy: ''
             }
         })
         

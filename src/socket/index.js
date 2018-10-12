@@ -23,8 +23,14 @@ var ioEvents = function (io) {
 
         socket.leave(app);
 
-        // Delete user from active user list
-        io.redisUtility.removeClient(app, userName)
+        let userData = {
+          'serverName': serverName,
+          'heartBeat': Date.now(),
+          'status': 'offline'
+        }
+
+        // Update user from active user list
+        io.redisUtility.updateClientStatus(app, userName, userData)
 
         // Delete user from localActiveUsersMap
         localActiveUsersMap.delete(socket.request.user.toLowerCase() + '_' + app)
@@ -39,17 +45,18 @@ var ioEvents = function (io) {
 
     // Login or SignUp user
     socket.on('login', async function (userName) {
-      
+     
       // Adding user object to socket session
       socket.request.user = userName
 
       let userData = {
         'serverName': serverName,
-        'heartBeat': Date.now()
+        'heartBeat': Date.now(),
+        'status': 'active'
       }
 
       // Adding username and its last active time on redis cache
-      io.redisUtility.addClient(app, userName, userData)
+      io.redisUtility.updateClientStatus(app, userName, userData)
       
       // Adding user name to activeUserMap
       localActiveUsersMap.set(userName.toLowerCase() + '_' + app, socket)
@@ -64,10 +71,19 @@ var ioEvents = function (io) {
       socket.broadcast.to(app).emit('activeUsersList', activeUsersName)
     })
 
+     // Sends messages to clients
+     socket.on('getAllUserList', async function () {
+      // Get all user list
+      let allUsersName = await getAllUsersName(app)
+      socket.emit('allUsersList', allUsersName)
+    })
+
     // Sends messages to clients
     socket.on('sendMessage', async function (data) {
       // Set username through with the message was sent (sender)
       data.sender = this.request.user
+      data.event = 'addMessage'
+      
       sendMessage(app, data, false)
     })
 
@@ -80,6 +96,7 @@ var ioEvents = function (io) {
       }
       // Set username through with the message was sent (sender)
       data.sender = this.request.user
+      data.event = 'addMessage'
 
       let message
 
@@ -174,14 +191,14 @@ var ioEvents = function (io) {
     })
 
     // Gives list of user chats and latest message for the each chat record 
-    socket.on('getInboxMessages', async function () {
+    socket.on('getInboxMessages', async function (page) {
       // If users is not logged in
       if(!this.request.user){
         socket.emit('loginRequired', '')
         return
       }
       
-      let data = await utility.getinboxMessages(app, this.request.user)
+      let data = await utility.getinboxMessages(app, this.request.user, page)
       socket.emit('addInboxMessages', data)
     })
 
@@ -256,6 +273,23 @@ var ioEvents = function (io) {
         io.redisCache.hgetall('OnlineUsers' + '_' + application, async function (_err, users) {
           let activeUsersName = []
           for (var element in users) {
+            if(JSON.parse(users[element]).status === 'active'){
+              activeUsersName.push(element)
+            }           
+          } // scope of for
+          // Active users
+          resolve(activeUsersName)
+        })
+      })
+    }
+
+    // Utility methods for sockets events
+    let getAllUsersName = function (application) {
+      return new Promise(function (resolve, reject) {
+        // Get all active users
+        io.redisCache.hgetall('OnlineUsers' + '_' + application, async function (_err, users) {
+          let activeUsersName = []
+          for (var element in users) {
             activeUsersName.push(element)
           } // scope of for
           // Active users
@@ -270,7 +304,7 @@ var ioEvents = function (io) {
 
       let message = {
         id : ( messageId )? messageId : 'N/A',
-        event: 'addMessage',
+        event: data.event,
         sender: data.sender,
         recipient: data.recipient,
         type: data.type,
@@ -280,7 +314,7 @@ var ioEvents = function (io) {
         clientGeneratedId: (data.clientGeneratedId)? data.clientGeneratedId : 'N/A'
       }
 
-      emitToPeer(app, message, 'addMessage')
+      emitToPeer(app, message, data.event)
     }
   })
 

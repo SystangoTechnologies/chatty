@@ -24,6 +24,9 @@ module.exports = function(sequelize, DataTypes) {
         blocked: {
             type: Sequelize.STRING
         },
+        archivedBy: {
+            type: Sequelize.STRING
+        }
     }, {
         indexes: [
           {

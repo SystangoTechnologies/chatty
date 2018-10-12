@@ -16,8 +16,8 @@ export function getServerName (_app, _user) {
     });
 }
 
-// Add client in the redis map
-export function addClient (_app, _user, userData) {  
+// Update client in the redis map
+export function updateClientStatus (_app, _user, userData) {  
     redisClient.hmset('OnlineUsers' + '_' + _app, _user.toLowerCase(), JSON.stringify(userData))
 }
 
