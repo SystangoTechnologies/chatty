@@ -582,14 +582,13 @@ export async function getAllGroups(app, user){
             }            
         })
 
-        let groups = []
-        
+        let groups = []        
 
         if(ownedGroup && ownedGroup.length>0) {
             ownedGroup.map( conversation => groups.push({ name: conversation.dataValues.name, role: 'owner'}))
         }
 
-        let group = await db.Group_conversation.findAll({
+        let memeberGroup = await db.Group_conversation.findAll({
             where: {
                 application: app
             }, 
@@ -598,8 +597,15 @@ export async function getAllGroups(app, user){
                 where: {
                     name: user
                 },
-            }
+            },
+            attributes: {
+                include: [[db.Sequelize.col('Group_Members.role'), 'role']]
+            },
         })
+
+        if(memeberGroup && memeberGroup.length>0) {
+            memeberGroup.map( conversation => groups.push({ name: conversation.dataValues.name, role: conversation.dataValues.Group_Members[0].role}))
+        }
 
         return groups
 
@@ -657,6 +663,9 @@ export async function addMemberToGroup(app, user, data){
         return member
 
     } catch(err){
+        if(err.name == 'SequelizeUniqueConstraintError'){
+            console.log('SequelizeUniqueConstraintError')
+        }
         // Wip
         console.log(err)
     }
