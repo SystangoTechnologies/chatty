@@ -66,6 +66,12 @@ var init = function (io) {
     
          // Sends messages to clients
          socket.on('getAllUserList', async function () {
+            // If users is not logged in
+            if(!this.request.user){
+                socket.emit('loginRequired', '')
+                return
+            }
+
             // Get all user list
             let allUsersName = await getAllUsersName(app)
             socket.emit('allUsersList', allUsersName)
@@ -73,9 +79,28 @@ var init = function (io) {
 
         // Sends messages to clients
         socket.on('getActiveUserList', async function () {
-            // Get all user list
+            // If users is not logged in
+            if(!this.request.user){
+                socket.emit('loginRequired', '')
+                return
+            }
+
+            // Get all active users
             let activeUsersName = await getActiveUsersName(app)
             socket.emit('activeUsersList', activeUsersName)
+        })
+
+        // Sends messages to clients
+        socket.on('getBlockedUserList', async function () {
+            // If users is not logged in
+            if(!this.request.user){
+                socket.emit('loginRequired', '')
+                return
+            }
+
+            // Get all blocked users
+            let blockedUsersName = await utility.getBlockedUserList(app, this.request.user)
+            socket.emit('blockedUsersList', blockedUsersName)
         })
     
         // Sends messages to clients

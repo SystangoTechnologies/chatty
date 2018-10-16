@@ -177,6 +177,30 @@ export async function getChatHistory(app, data, currentUser) {
      }
 }
 
+export async function getBlockedUserList(app, user){
+    try{
+        user = user.toLowerCase()
+
+        let blockedUsers =  await db.Peer_conversation.findAll({
+            where: {
+                [db.Sequelize.Op.or]: [{user1: user}, {user2: user}],
+                application: app,
+                blocked:{
+                    [db.Sequelize.Op.notIn]: [user, ''],
+                } 
+            }
+        })
+
+        let users = []
+        if(blockedUsers && blockedUsers.length>0) {
+            blockedUsers.map( conversation => users.push(conversation.dataValues.blocked))
+        }
+        return users;
+    } catch(err){
+
+    }
+}
+
 export async function deleteAndChangeStatus (app, user, data) {
     let transaction
     try {
