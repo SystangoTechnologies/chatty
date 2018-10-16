@@ -1,12 +1,19 @@
 {	"db": {
 		"user": "root",
 		"password": "root",
-		"host": "127.0.0.1",
+		"host": "localhost",
 		"port": "3306",
 		"name": "chatty",
 		"dialect": "mysql"
 	},
-	"echoSentMessage" : true,
+	"redis": {
+		"host": "localhost",
+		"port": 6379,
+		"password": ""
+	},
+	"echoSentMessage" : false,
 	"noOfRecordsPerPage": 100,
-	"sessionSecret": "<RandomString>"
+	"sessionSecret": "<RandomString>",
+	"socketHandshakeToken": "hgQaPKevgEkwV2wK",
+	"serverName": "ChatServer_server1"
 }

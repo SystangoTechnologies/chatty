@@ -39,7 +39,8 @@ db.Peer_conversation = require('./peer_conversations.js')(sequelize, Sequelize);
 db.Message = require('./messages.js')(sequelize, Sequelize);
 db.Pending = require('./pending.js')(sequelize, Sequelize);
 db.Delivered = require('./delivered.js')(sequelize, Sequelize);
-
+db.Group_conversation = require('./group_conversation.js')(sequelize, Sequelize);
+db.Group_Member = require('./group_member.js')(sequelize, Sequelize);
 
 //Relations
 db.Peer_conversation.hasMany(db.Message);
@@ -50,6 +51,9 @@ db.Pending.belongsTo(db.Message);
 
 db.Message.hasMany(db.Delivered);
 db.Delivered.belongsTo(db.Message);
+
+db.Group_conversation.hasMany(db.Group_Member);
+db.Group_Member.belongsTo(db.Group_conversation);
 
 
 module.exports = db

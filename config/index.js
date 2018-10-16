@@ -12,9 +12,16 @@ var init = function () {
         name: process.env.DB_NAME,
         dialect: process.env.DB_DIALECT
       },
+      redis: {
+        port: process.env.REDIS_PORT,
+        host: process.env.REDIS_HOST,
+        password: process.env.REDIS_PASSWORD
+      },
       sessionSecret: process.env.SESSION_SECRET,
       echoSentMessage: process.env.ECHO_SENT_MESSAGE,
-      noOfRecordsPerPage: process.env.NO_OF_RECORDS_PER_PAGE
+      noOfRecordsPerPage: process.env.NO_OF_RECORDS_PER_PAGE,
+      socketHandshakeToken: process.env.SOCKET_HANDSHAKE_TOKEN,
+      serverName: process.env.SERVER_NAME      
     }
   } else {
     return require('./config.json')

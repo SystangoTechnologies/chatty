@@ -33,13 +33,31 @@
 
 		<button type="button" class="btn btn-success" style="margin-left: 40%;" id="login_signup_btn">Login/SignUp</button>
 		<button type="button" class="btn btn-danger" style="margin-left: 40%; display:none;" id="logout_btn" >Logout</button>
+
+		<br><br>
+		<div class="input-group group-options" style=" display: none; max-width: 30%;  float: right;" >
+			<input type="text" class="form-control group-name" placeholder="Group's name" aria-label="Group Name" aria-describedby="basic-addon2">
+			<div class="input-group-append">
+			  <button class="btn btn-outline-secondary create-group" style="color: white; background-color: #0ba80b;" type="button">Create</button>
+			  <button class="btn btn-outline-secondary delete-group" style="color: white; background-color: #cd1033;" type="button">Delete</button>
+			</div>
+		  </div>
+
 	</div>
 
-	 <div style=" float: right; margin-right:2%; display: none;" class="online-user-list">
+	
+
+	 <div style=" float: left; margin-right:2%; display: none;" class="online-user-list">
 	 	<H2>Online Users</H2>
-	 	<div class="list-group">
+	 	<div class="list-group list-group-online-users">
 	  	</div>
 	 </div>
+	 <br><br>
+	 <div style=" float: right; margin-right:2%; margin-top: -40px; display: none;" class="group-list">
+		<H2>Groups</H2>
+		<div class="list-group list-group-groups">
+		 </div>
+	</div>
 	 
 	 <br>
 	 <br>
@@ -47,7 +65,21 @@
 			<button type="button" class="btn btn-danger block-user" style="float: right; margin-left: 2%; display: none;">Block User</button>
 			&nbsp;
 			<button type="button" class="btn btn-primary msg-persistance" style="float: right; display: none; margin-left: 2%;">On record</button>
-   		<div id="chat-user-name" style="display: none"></div>
+		   <div id="chat-user-name" style="display: none"></div>
+		   
+		   <br>
+		   <br>
+		   <div class="input-group group-admin-options" style=" display: none; max-width: 50%;  float: right;" >
+			<input type="text" class="form-control group-member-name" placeholder="Member's name" aria-label="Group Name" aria-describedby="basic-addon2">
+			<div class="input-group-append">
+			  <button class="btn btn-outline-secondary add-member-group" style="color: white; background-color: #0ba80b;" type="button">Add</button>
+			  <button class="btn btn-outline-secondary make-admin-member-group" style="color: white; background-color: #0ba80b;" type="button">Make Admin</button>
+			  <button class="btn btn-outline-secondary remove-member-group" style="color: white; background-color: #cd1033;" type="button">Remove</button>
+			</div>
+		  </div>
+		  <br>
+		  <br>
+
 		   <p class="lead chat-user">Inbox messages</p>
 		<div id="messagess">
 		</div>
@@ -71,8 +103,8 @@
 				// Enter IP/Dns on the server
 				// var socket = io('http://baseball.draft2teams.sockets.staging.strat-o-matic.com/users', { transports: ['websocket'] });
 				// var parentServerSocket = io('http://baseball.draft2teams.sockets.staging.strat-o-matic.com/socket.io/userss?transport=websocket&token=xyz');
-				var socket = io('http://baseball.draft2teams.sockets.staging.strat-o-matic.com/users?application=demo', { transports: ['websocket'] });
-				// var socket = io('http://127.0.0.1:3000/users', { transports: ['websocket'] });
+				// var socket = io('http://baseball.draft2teams.sockets.staging.strat-o-matic.com/users?application=demo', { transports: ['websocket'] });
+				var socket = io('http://127.0.0.1:3000/users?application=demo', { transports: ['websocket'] });
 				let username;
       			let userLogedIn = false;
 
@@ -108,6 +140,29 @@
 					socket.emit('login', username);
 				})
 
+				$('.create-group').click(function() {
+					let groupName = $('.group-name').val();
+					if(/^[a-z0-9]+$/.test(groupName)){
+						let data = {
+							name: groupName
+						}
+						socket.emit('createGroup', data);
+						console.log('create-group' + data);
+					}
+					console.log('create-group');
+					
+				})
+
+				$('.delete-group').click(function() {
+					let groupName = $('.group-name').val();
+					if(/^[a-z0-9]+$/.test(groupName)){
+						let data = {
+							name: groupName
+						}
+						socket.emit('deleteGroup', data);
+					}
+				})
+
 				socket.on('loginsuccess', function(){
 					$('#login-success').show();
 					$('#login_signup_btn').hide();
@@ -117,7 +172,15 @@
 					// socket.emit('getPendingMessages', username)
 					$('#socket-disconnected').hide();
 					$('#socket-disconnected-info').hide();
-					socket.emit('getInboxMessages')
+
+					let data = {
+    					noOfRecordsPerPage: 100,
+						page: 1
+					}
+
+					socket.emit('getInboxMessages', data)
+
+					socket.emit('getAllGroups')
 				});
 
 
@@ -130,6 +193,8 @@
 				socket.on('activeUsersList', function(data){
 					
 					$('.online-user-list').show();
+					$('.group-list').show();
+					$('.group-options').show();
 					let html = ''
 					for(var user of data) {
 						if (user != username ){
@@ -137,10 +202,27 @@
 							}
 								
 							}
-							$('.list-group').html('');
+							$('.list-group-online-users').html('');
 
 							if(html === ''){ return; }
-								$('.list-group').prepend(html);
+								$('.list-group-online-users').prepend(html);
+				});
+
+				socket.on('allGroups', function(data){
+					
+					$('.group-list').show();
+					$('.group-options').show();
+					console.log('All Groups ' + data);
+
+					let html = ''
+					for(var group of data) {						
+						html +=  `<div class="active-group-box"><li  class="list-group-item list-group-item-action active-group-list" id="${group.name}" role="${group.role}">${group.name}</li></div>`;		
+					}
+						
+					$('.list-group-groups').html('');
+
+					if(html === ''){ return; }
+					$('.list-group-groups').prepend(html);
 				});
 
 				$('#logout_btn').click(function()
@@ -148,10 +230,71 @@
 					socket.emit('disconnect');
 					socket.disconnect();
 					$('.online-user-list').hide();
+					$('.group-list').hide();
+					$('.group-options').hide();
 					$('#login_signup_btn').show();
 					$('#logout_btn').hide();
 					$('#message_area').hide();
+					$('.group-admin-options').hide();
 				});
+
+				$('.add-member-group').click(function(){
+					
+					let memberName = $('.group-member-name').val();
+					let groupName = $('#chat-user-name').text();
+					let data = '';
+					if(memberName){
+						 data = {
+							groupName: groupName,
+							role: 'admin',
+							memberName: memberName
+						}
+					}
+					socket.emit('addMemberToGroup', data)
+				});
+
+				$('.remove-member-group').click(function(){
+					
+					let memberName = $('.group-member-name').val();
+					let groupName = $('#chat-user-name').text();
+					let data = '';
+					if(memberName){
+						data = {
+							groupName: groupName,
+							memberName: memberName
+						}
+					}
+					socket.emit('removeMemberFromGroup', data)
+				});
+
+				socket.on('memberRemovedFromGroup', function(data){
+					console.log('memberRemovedFromGroup  --->' + data)
+
+					let temp = {
+							name: $('#chat-user-name').text()
+						}
+					
+					// socket.emit('deleteGroup', temp)
+				})
+
+				$('.make-admin-member-group').click(function(){
+					let memberName = $('.group-member-name').val();
+					let groupName = $('#chat-user-name').text();
+					let data = '';
+					if(memberName){
+						 data = {
+							groupName: groupName,
+							role: 'admin',
+							memberName: memberName
+						}
+					}
+					socket.emit('changeMemberRole', data)
+				});
+
+				socket.on('updatedMemberRole', function(data){
+					console.log('updatedMemberRole  --->' + data)
+				})
+				
 
 				$('.msg-box').keydown(function(e) {
 					if (e.keyCode == 13) {
@@ -223,6 +366,11 @@
 					}
 
 				});
+
+				
+				socket.on('newMemberToGroup', function(msg){
+					console.log('newMemberToGroup  ---> '+ msg)
+				})
 
 				socket.on('addMessage', function(msg){
 						console.log(msg);					
@@ -310,12 +458,13 @@
 					$('.message-input-div').show();
 					$('.msg-persistance').show();
 					$('.block-user').show();
+					$('.group-admin-options').hide();
 					
 					$('.chat-user').append('Chatting with <i>' + this.id +'</i>');
 					let data = {
 						peer: this.id,
-						noOfRecordsPerPage: 10,
-						page: 2
+						noOfRecordsPerPage: 100,
+						page: 1
 					}
 
 					let updatePendingStatus = {
@@ -325,6 +474,36 @@
 					socket.emit('updatePendingMessages', updatePendingStatus)
 	  
 					socket.emit('getChatHistory', data)		
+				});
+
+				$(document).on('click','.active-group-list',function(){
+					$('#chat-user-name').text(this.id)
+					$('.chat-user').html('');
+					$('#messages').text('')
+					$('.message-input-div').show();
+					$('.msg-persistance').show();
+					let role = this.getAttribute("role")
+					if(role == 'owner'){
+						$('.group-admin-options').show();
+					}					
+					
+					// $('.block-user').show();
+					
+					
+					$('.chat-user').append('Chatting in <i>' + this.id +' Group with the role '+ role +'</i>');
+					let data = {
+						peer: this.id,
+						noOfRecordsPerPage: 100,
+						page: 1
+					}
+
+					let updatePendingStatus = {
+						peer: this.id
+					}
+
+					//socket.emit('updatePendingMessages', updatePendingStatus)
+	  
+					//socket.emit('getChatHistory', data)		
 				});
 
 				$(document).on('click','.msg-persistance',function(){

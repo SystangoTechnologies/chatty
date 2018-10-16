@@ -335,7 +335,7 @@ export async function getinboxMessages (app, user, data) {
                 [db.Sequelize.Op.or]: [{user1: user}, {user2: user}],
                 application: app,
                 archivedBy: {
-                    [Op.ne]: user
+                    [db.Sequelize.Op.ne]: user
                 }
             },
             include: [{
@@ -534,16 +534,214 @@ export async function addMediaMessages(app, sender, message){
 
 export async function createGroup(app, user, data){
     try{
-        let pendingMsg = await db.Group_conversation.create({
+        let group = await db.Group_conversation.create({
             name: data.name.toLowerCase(),
             encryption_key: Math.random().toString(36).replace('0.', ''),
             application: app,
             owner: user
         })
+
+        return group
+
     } catch(err){
         // Wip
         console.log(err)
     }
+}
+
+export async function getAllGroups(app, user){
+    try{
+        let ownedGroup = await db.Group_conversation.findAll({
+            where: {
+                application: app,
+                owner: user
+            }            
+        })
+
+        let groups = []
+        
+
+        if(ownedGroup && ownedGroup.length>0) {
+            ownedGroup.map( conversation => groups.push({ name: conversation.dataValues.name, role: 'owner'}))
+        }
+
+        let group = await db.Group_conversation.findAll({
+            where: {
+                application: app
+            }, 
+            include: {
+                model: db.Group_Member,
+                where: {
+                    name: user
+                },
+            }
+        })
+
+        return groups
+
+    } catch(err){
+        // Wip
+        console.log(err)
+    }
+}
+
+// Delete group
+export async function deleteGroup(app, user, data){
+    try{
+
+        let groupId = await getGroupByOwner(app, user, data.name.toLowerCase())
+
+        if(groupId.length){
+
+            let group = await db.Group_conversation.destroy({
+                where: {
+                    id: groupId[0].dataValues.id,
+                    application: app,
+                    owner: user
+                }
+            })
+
+            await db.Group_Member.destroy({
+                where: {
+                    group_conversation_id: groupId[0].dataValues.id
+                }
+            })
+            return true
+        }   
+
+    } catch(err){
+        // Wip
+        console.log(err)
+    }
+}
+
+// Add Member to group
+export async function addMemberToGroup(app, user, data){
+    try{
+        let group = await getGroupByOwnerOrAdmin(app, user, data.groupName)
+
+        let member = ''
+
+        if(group.length){
+            member = await db.Group_Member.create({
+                role: (data.role.toLowerCase() == 'admin')? 'admin' : 'normal',
+                name: data.memberName.toLowerCase(),
+                group_conversation_id: group[0].dataValues.id
+            })
+        }
+
+        return member
+
+    } catch(err){
+        // Wip
+        console.log(err)
+    }
+}
+
+// Remove Member to group
+export async function removeMemberFromGroup(app, user, data){
+    try{
+        let group = await getGroupByOwnerOrAdmin(app, user, data.groupName)
+
+        let member = ''
+
+        if(group){
+            member = await db.Group_Member.destroy({
+                where: {
+                    name: data.memberName.toLowerCase(),
+                    group_conversation_id: group[0].dataValues.id
+                }
+            })
+        }
+
+        return member
+
+    } catch(err){
+        // Wip
+        console.log(err)
+    }
+}
+
+// Remove Member to group
+export async function changeMemberRole(app, user, data){
+    try{
+        let group = await getGroupByOwnerOrAdmin(app, user, data.groupName)
+
+        let member = ''
+
+        if(group){
+                        
+            member = await db.Group_Member.update({
+                role: (data.role.toLowerCase() == 'admin')? 'admin' : 'normal'
+              }, {
+                where: {
+                    name: data.memberName.toLowerCase(),
+                    group_conversation_id: group[0].dataValues.id
+                }
+            })
+        }
+
+        return member
+
+    } catch(err){
+        // Wip
+        console.log(err)
+    }
+}
+
+async function getGroupByOwner(app, user, groupName){
+    try{
+        let group = await db.Group_conversation.findAll({
+            where: {
+                name: groupName,
+                application: app,
+                owner: user
+            }
+        })
+
+        return group
+
+    } catch(err){
+        // Wip
+        console.log(err)
+    }
+}
+
+async function getGroupByOwnerOrAdmin(app, user, groupName){
+    try{
+        let group = await db.Group_conversation.findAll({
+            where: {
+                name: groupName.toLowerCase(),
+                application: app,
+                owner: user
+            }
+        })
+
+        if(!group.length) {
+            group = await db.Group_conversation.findAll({
+                where: {
+                    name: groupName.toLowerCase(),
+                    application: app
+                }, 
+                include: {
+                    model: db.Group_Member,
+                    where: {
+                        name: user,
+                        role: 'admin'
+                    },
+                }
+            })
+        }
+
+        return group
+
+    } catch(err){
+        // Wip
+        console.log(err)
+    }
+}
+
+async function getGroupMembers(app, groupName){
 }
 
 // get only latest message
