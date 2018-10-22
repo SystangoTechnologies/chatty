@@ -293,12 +293,25 @@ var init = function (io) {
                 socket.emit('loginRequired', '')
                 return
             }
+
+            data.owner = this.request.user.toLowerCase()
+
             let group = await utility.createGroup(app, this.request.user, data)
             
             if(group){
                 data.id = group.id
-                io.redisUtility.updateGroup(app, group.id, (data.users && data.users.length > 0)? data.users : '' )
-                socket.emit('groupCreated', data)  
+                data.status = 'success'
+                io.redisUtility.updateGroup(app, group.id, (data.users && data.users.length > 0)? data.users.join(',') : '' )
+                socket.emit('groupCreated', data)
+
+                // Emit group created to all the users
+                if(data.users && data.users.length > 0){
+                    emitMessgaeToUsers(data.users, data, 'groupCreated')
+                }
+            } else {
+                data.id = 'N/A'
+                data.status = 'Duplicate entry'
+                socket.emit('groupCreated', data) 
             }
 
             let groups = await utility.getAllGroups(app, this.request.user)
@@ -337,9 +350,26 @@ var init = function (io) {
 
            let member = await utility.addMemberToGroup(app, this.request.user, data)
 
-           if(member){
-               socket.emit('newMemberToGroup', data)
-           }           
+           if(member) {
+                let groupMembers = await io.redisUtility.getGroupMembers(app, data.id)
+
+                data.status = 'success'
+
+                // Emit group created to all the users
+                if(groupMembers && groupMembers.length > 0){
+                    emitMessgaeToUsers(groupMembers, data, 'newMemberToGroup')
+                }
+
+                groupMembers.push(data.memberName.toLowerCase())
+
+                io.redisUtility.updateGroup(app, data.id, groupMembers.join(','))
+
+                socket.emit('newMemberToGroup', data)
+           } else {
+                data.status = 'Duplicate Entry'
+                
+                socket.emit('newMemberToGroup', data)
+           }       
        })
 
         /* removeMemberFromGroup
@@ -359,8 +389,24 @@ var init = function (io) {
             let member = await utility.removeMemberFromGroup(app, this.request.user, data)
 
             if(member){
+                let groupMembers = await io.redisUtility.getGroupMembers(app, data.id)
+
+                groupMembers.splice( groupMembers.indexOf(data.memberName.toLowerCase()), 1 );
+
+                data.status = 'User Removed'
+
+                // Emit group created to all the users
+                if(groupMembers && groupMembers.length > 0){
+                    emitMessgaeToUsers(groupMembers, data, 'memberRemovedFromGroup')
+                }
+
+                io.redisUtility.updateGroup(app, data.id, groupMembers.join(','))
+
                 socket.emit('memberRemovedFromGroup', data)
-            }           
+            } else {
+                data.status = 'User Not Found'
+                socket.emit('memberRemovedFromGroup', data)
+            }        
         })
 
          /* leaveGroup
@@ -419,9 +465,19 @@ var init = function (io) {
           let status = await utility.deleteGroup(app, this.request.user, data)
     
           if(status){
-            io.redisUtility.deleteGroup(app, data.name.toLowerCase())
+            data.status = 'success'
+            let groupMembers = await io.redisUtility.getGroupMembers(app, data.id)
+            io.redisUtility.deleteGroup(app, data.id)
+            socket.emit('groupDeleted', data)
+
+            // Emit group created to all the users
+            if(groupMembers && groupMembers > 0){
+                emitMessgaeToUsers(groupMembers, data, 'groupDeleted')
+            }
+          } else {
+            data.status = 'Not authorized'
             socket.emit('groupDeleted', data)  
-          }    
+          }
         }) 
         
         // Utility methods for sockets events
@@ -494,6 +550,29 @@ var init = function (io) {
             io.redisPublishChannel.publish(connectedServerName, JSON.stringify(data))
             }
         }
+
+        //Emits messages to group of users
+        let emitMessgaeToUsers = async function (users, data, event) {
+        for (let user in users) {
+         
+          let connectedServerName = await io.redisUtility.getServerName(app, users[user])
+  
+          data.event = event
+          
+          // Check if recipient is connected to the current server
+          if (connectedServerName === io.serverName) {
+            let tempSocket = io.localActiveUsersMap.get(users[user].toLowerCase() + '_' + app)
+            if (tempSocket) {
+              // emit message directly to client
+              tempSocket.emit(event, data)
+            }
+          } else {
+            // publish message on the redis channel to specific server
+            console.log('emitMessgaeToPlayers----- ' + connectedServerName + JSON.stringify(data) )
+            io.redisPublishChannel.publish(connectedServerName, JSON.stringify(data))
+          }
+        }
+      }
     })
 }
    

@@ -357,9 +357,11 @@ export async function getinboxMessages (app, user, data) {
         if(conversationIds && conversationIds.length > 0){
             let pendingMessageCount = await getPendingMessageCount (app, user, conversationIds)
 
-            let latestMessages = await getlatestMessages(conversationIds)
+            let latestMessagesPeerCoversation = await getlatestMessagesForPeerConversation(conversationIds)
+
+            let latestMessagesGroupCoversation = await getlatestMessagesForGroupConversation(conversationIds)
     
-            let result = await groupAndSortResults(user, conversationIds, peerConversationMap, groupConversationMap, latestMessages, pendingMessageCount)
+            let result = await groupAndSortResults(user, conversationIds, peerConversationMap, groupConversationMap, latestMessagesPeerCoversation, latestMessagesGroupCoversation, pendingMessageCount)
     
             result.sort(function(a, b){
                 if(a['Messages.created_at']  > b['Messages.created_at']){
@@ -559,6 +561,9 @@ export async function createGroup(app, user, data){
         return group
 
     } catch(err){
+        if(err.name == 'SequelizeUniqueConstraintError'){
+           return false
+        }
         // Wip
         console.log(err)
     }
@@ -665,7 +670,7 @@ export async function deleteGroup(app, user, data){
             })
         }
            
-        return true
+        return group
 
     } catch(err){
         // Wip
@@ -692,7 +697,7 @@ export async function addMemberToGroup(app, user, data){
 
     } catch(err){
         if(err.name == 'SequelizeUniqueConstraintError'){
-            console.log('SequelizeUniqueConstraintError')
+            return false
         }
         // Wip
         console.log(err)
@@ -724,7 +729,6 @@ export async function removeMemberFromGroup(app, user, data){
 }
 
 // leaveGroup
-// Remove Member to group
 export async function leaveGroup(app, user, data){
     try{
         
@@ -826,32 +830,34 @@ async function getGroupMembers(app, groupName){
 }
 
 // get Group and Sort results
-async function groupAndSortResults(user, conversationIds, peerConversationMap, groupConversationMap, latestMessages, pendingMessageCount) {
+async function groupAndSortResults(user, conversationIds, peerConversationMap, groupConversationMap, latestMessagesPeerCoversation, latestMessagesGroupCoversation, pendingMessageCount) {
     let msgArray = []
     let latestMsg = new Map();
     let msg
     let messages = []
 
     conversationIds.forEach(element => {
-        let tempMsg = (peerConversationMap.get(element)) ? peerConversationMap.get(element) : groupConversationMap.get(element)
-        let latestMsg = latestMessages.get(element)
+        let tempConversation = (peerConversationMap.get(element)) ? peerConversationMap.get(element) : groupConversationMap.get(element)
+        let latestMsg = (latestMessagesPeerCoversation.get(element)) ? latestMessagesPeerCoversation.get(element) : latestMessagesGroupCoversation.get(element)
         let pending  = pendingMessageCount.get(element)
         msg = {
             conversation_id: element,
-            group: (tempMsg.user1)? false : true,
-            groupName: (tempMsg.name)? tempMsg.name : 'N/A',
-            user1: (tempMsg.user1)? tempMsg.user1 : 'N/A',
-            user2: (tempMsg.user2)? tempMsg.user2 : 'N/A',
+            group: (tempConversation.user1)? false : true,
+            groupName: (tempConversation.name)? tempConversation.name : 'N/A',
+            user1: (tempConversation.user1)? tempConversation.user1 : 'N/A',
+            user2: (tempConversation.user2)? tempConversation.user2 : 'N/A',
             sender: (latestMsg)? latestMsg.sender : '',
             data: (latestMsg)? latestMsg.data : '',
             type: (latestMsg)? latestMsg.type: '',
-            archivedBy: (tempMsg.archivedBy)? tempMsg.archivedBy : '',
+            peer_conversation_id: tempConversation.id,
+            group_conversation_id: tempConversation.id,
+            archivedBy: (tempConversation.archivedBy)? tempConversation.archivedBy : '',
             pendingCount: (pending) ? pending.pendingCount: 0,
-            display_picture: (tempMsg.display_picture)? tempMsg.display_picture : '',
-            created_at: (latestMsg)? latestMsg.created_at : (tempMsg.name)? tempMsg.created_at : '',
-            updated_at: (latestMsg)? latestMsg.updated_at : (tempMsg.name)? tempMsg.updated_at : '',
-            'Messages.created_at': (latestMsg)? latestMsg.created_at : (tempMsg.name)? tempMsg.created_at : '',
-            'Messages.updated_at': (latestMsg)? latestMsg.updated_at : (tempMsg.name)? tempMsg.updated_at : '',
+            display_picture: (tempConversation.display_picture)? tempConversation.display_picture : '',
+            created_at: (latestMsg)? latestMsg.created_at : (tempConversation.name)? tempConversation.created_at : '',
+            updated_at: (latestMsg)? latestMsg.updated_at : (tempConversation.name)? tempConversation.updated_at : '',
+            'Messages.created_at': (latestMsg)? latestMsg.created_at : (tempConversation.name)? tempConversation.created_at : '',
+            'Messages.updated_at': (latestMsg)? latestMsg.updated_at : (tempConversation.name)? tempConversation.updated_at : '',
         }
         msgArray.push(msg)
     })
@@ -876,13 +882,31 @@ async function groupAndSortResults(user, conversationIds, peerConversationMap, g
     return msgArray
 }
 
-async function getlatestMessages(ids){
+async function getlatestMessagesForPeerConversation(ids){
     return new Promise((resolve, reject) => {
         db.sequelize.query("SELECT * FROM ( \
              SELECT * FROM Messages ORDER BY Messages.updated_at DESC ) AS Messages \
                 where Messages.peer_conversation_id in \
                     (select id from Peer_conversations where id in (:conversation_ids)) \
                         GROUP BY Messages.peer_conversation_id",
+            { replacements: { conversation_ids: ids }, type: db.sequelize.QueryTypes.SELECT }
+        ).then(messages => {
+            let messagesMap = new Map()
+            for(let element in messages){
+                messagesMap.set(messages[element].peer_conversation_id, messages[element])
+            }
+            resolve(messagesMap)
+        })
+    });
+}
+
+async function getlatestMessagesForGroupConversation(ids){
+    return new Promise((resolve, reject) => {
+        db.sequelize.query("SELECT * FROM ( \
+             SELECT * FROM Messages ORDER BY Messages.updated_at DESC ) AS Messages \
+                where Messages.group_conversation_id in \
+                    (select id from Peer_conversations where id in (:conversation_ids)) \
+                        GROUP BY Messages.group_conversation_id",
             { replacements: { conversation_ids: ids }, type: db.sequelize.QueryTypes.SELECT }
         ).then(messages => {
             let messagesMap = new Map()
@@ -957,12 +981,12 @@ async function getPendingMessageCount (app, user, conversationIds) {
            return false;
        }
 
-       let pendingMessages
+       let peerPendingMessages, groupPendingMessages
        user = user.toLowerCase()
        
         if(conversationIds && conversationIds.length > 0){
             // Fetching messages for the current user
-            pendingMessages = await db.Message.findAll({
+            peerPendingMessages = await db.Message.findAll({
                 where: {
                     peer_conversation_id: {
                         $in: conversationIds
@@ -980,11 +1004,36 @@ async function getPendingMessageCount (app, user, conversationIds) {
                 group: db.Sequelize.col('Message.peer_conversation_id'),
                 raw: true
             })
+
+            groupPendingMessages = await db.Message.findAll({
+                where: {
+                    group_conversation_id: {
+                        $in: conversationIds
+                    }
+                },
+                include: [{
+                    model: db.Pending,
+                    where: {
+                        recipient: user  
+                    },
+                }],
+                attributes: { 
+                    include: [[db.sequelize.fn("COUNT", db.sequelize.col("Pendings.id")), "pendingCount"]]
+                },
+                group: db.Sequelize.col('Message.group_conversation_id'),
+                raw: true
+            })
         }
         let pendingMessagesMap = new Map()
-        for(let element in pendingMessages){
-            pendingMessagesMap.set(pendingMessages[element].peer_conversation_id, pendingMessages[element])
+
+        for(let element in peerPendingMessages){
+            pendingMessagesMap.set(peerPendingMessages[element].peer_conversation_id, peerPendingMessages[element])
         }
+
+        for(let element in groupPendingMessages){
+            pendingMessagesMap.set(groupPendingMessages[element].group_conversation_id, groupPendingMessages[element])
+        }
+
         return pendingMessagesMap
         
     } catch(err){

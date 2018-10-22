@@ -28,7 +28,7 @@ export function removeClient (_app, _user) {
 
 // Update group in the redis map
 export function updateGroup (_app, _id, members) {  
-    redisClient.hmset('Groups' + '_' + _app, _id, JSON.stringify(members))
+    redisClient.hmset('Groups' + '_' + _app, _id, members)
 }
 
 // Delete group in the redis map
