@@ -31,6 +31,9 @@ module.exports = function(sequelize, DataTypes) {
         },
         peer_conversation_id: {
             type: DataTypes.UUID
+        },
+        group_conversation_id: {
+            type: DataTypes.UUID
         }
     }, {
         timestamps: true

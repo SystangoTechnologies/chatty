@@ -20,6 +20,9 @@ module.exports = function(sequelize, DataTypes) {
         },
         owner: {
             type: Sequelize.STRING 
+        },
+        display_picture: {
+           type: Sequelize.STRING 
         }
     }, {
         indexes: [

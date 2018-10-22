@@ -17,9 +17,9 @@ var init = function (io) {
                 socket.leave(app);
         
                 let userData = {
-                'serverName': io.serverName,
-                'heartBeat': Date.now(),
-                'status': 'offline'
+                    'serverName': io.serverName,
+                    'heartBeat': Date.now(),
+                    'status': 'offline'
                 }
         
                 // Update user from active user list
@@ -281,7 +281,9 @@ var init = function (io) {
     
         /* Create Group
             data = {
-                name: 'xyz'
+                name: 'xyz',
+                display_picture: ''
+                users: ['user1', 'user2']
             } 
         */
         socket.on('createGroup', async function (data) {
@@ -291,9 +293,11 @@ var init = function (io) {
                 socket.emit('loginRequired', '')
                 return
             }
-            let status = await utility.createGroup(app, this.request.user, data)
+            let group = await utility.createGroup(app, this.request.user, data)
             
-            if(status){
+            if(group){
+                data.id = group.id
+                io.redisUtility.updateGroup(app, group.id, (data.users && data.users.length > 0)? data.users : '' )
                 socket.emit('groupCreated', data)  
             }
 
@@ -319,9 +323,9 @@ var init = function (io) {
 
         /* addMemberToGroup
             data = {
-                groupName = '',
-                role = '',
-                memberName = ''
+                id = 'groupId',
+                role = 'normal',
+                memberName = 'xyz'
             }
         */
         socket.on('addMemberToGroup', async function (data) {
@@ -340,7 +344,7 @@ var init = function (io) {
 
         /* removeMemberFromGroup
             data = {
-                groupName = '',
+                id = 'groupId',
                 role = '',
                 memberName = ''
             }
@@ -359,9 +363,28 @@ var init = function (io) {
             }           
         })
 
+         /* leaveGroup
+            data = {
+                id = 'groupId'
+            }
+        */
+       socket.on('leaveGroup', async function (data) {
+        // If users is not logged in
+        if(!this.request.user){
+            socket.emit('loginRequired', '')
+            return
+        }
+
+        let member = await utility.leaveGroup(app, this.request.user, data)
+
+        if(member){
+            socket.emit('leftGroup', data)
+        }           
+    })
+
         /* changeMemberRole
             data = {
-                groupName = '',
+                id = 'groupId',
                 role = '',
                 memberName = ''
             }
@@ -382,7 +405,7 @@ var init = function (io) {
         
         /* Delete Group
             data = {
-                name: 'xyz'
+                id: 'groupId'
             } 
         */
         socket.on('deleteGroup', async function (data) {
@@ -396,6 +419,7 @@ var init = function (io) {
           let status = await utility.deleteGroup(app, this.request.user, data)
     
           if(status){
+            io.redisUtility.deleteGroup(app, data.name.toLowerCase())
             socket.emit('groupDeleted', data)  
           }    
         }) 

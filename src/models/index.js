@@ -55,5 +55,8 @@ db.Delivered.belongsTo(db.Message);
 db.Group_conversation.hasMany(db.Group_Member);
 db.Group_Member.belongsTo(db.Group_conversation);
 
+db.Group_conversation.hasMany(db.Message);
+db.Message.belongsTo(db.Group_conversation);
+
 
 module.exports = db
