@@ -42,6 +42,58 @@ export async function persistOneToOneMsg (app, data) {
     }
 }
 
+
+// Persisting group messages
+export async function persistGroupMsg (app, data) {
+    let transaction
+    try{
+        // Check message is being sent to different user
+        if(data.sender.toLowerCase() === data.recipient.toLowerCase()){
+            return
+        }
+
+        // Creating transaction 
+        transaction = await db.sequelize.transaction()
+
+        // Getting the conversation Id 
+        let members = await getAllMembersWithAuth(app, data.sender.toLowerCase(), data.groupId)
+
+        if(members && members.length > 0) {
+            let msg = await db.Message.create({
+                data: data.data,
+                sender: data.sender.toLowerCase(),
+                url: '',
+                status: 0,
+                type: data.type,
+                clientGeneratedId: data.clientGeneratedId,
+                group_conversation_id: data.groupId
+            }, { transaction: transaction })
+
+            let pendingMsg = []
+            for(let index in members){
+                if(data.sender != members[index]){
+                    pendingMsg.push({
+                        recipient: members[index].toLowerCase(),
+                        message_id: msg.dataValues.id
+                    })
+                }
+            }
+
+            db.Pending.bulkCreate(pendingMsg)
+        }
+
+        // Commiting the transaction
+        await transaction.commit()
+
+        return true
+
+    } catch(err){
+        // Rollback the transaction
+        await transaction.rollback()
+        console.log(err)
+    }
+}
+
 // Message sent by servers
 export async function sendAndPersistMsg(app, sender, peer, recipient, data) {
     let transaction
@@ -604,6 +656,68 @@ export async function getAllGroups(app, user){
         }
 
         return groups
+
+    } catch(err){
+        // Wip
+        console.log(err)
+    }
+}
+
+export async function getAllMembersWithAuth(app, user, groupId){
+    try{
+        let groupMembers = await db.Group_conversation.findAll({
+            where: {
+                application: app,
+                id: groupId
+            },
+            include: {
+                model: db.Group_Member
+            }           
+        })
+
+        
+
+        let members = []        
+
+        if(groupMembers && groupMembers.length>0) {
+            members.push(groupMembers[0].owner)
+            groupMembers[0].Group_Members.map( conversation => members.push(conversation.name))
+        }
+
+        if(members.indexOf('anurag') >= 0){
+            return members
+        }
+
+        return false
+
+    } catch(err){
+        // Wip
+        console.log(err)
+    }
+}
+
+export async function getAllMembersWithRoles(app, user, groupId){
+    try{
+        let groupMembers = await db.Group_conversation.findAll({
+            where: {
+                application: app,
+                id: groupId
+            },
+            include: {
+                model: db.Group_Member
+            }           
+        })
+
+        
+
+        let members = []        
+
+        if(groupMembers && groupMembers.length>0) {
+            members.push({ name: groupMembers[0].owner, role: 'owner'})
+            groupMembers[0].Group_Members.map( conversation => members.push({name: conversation.name, role: conversation.role}))
+        }
+
+        return members
 
     } catch(err){
         // Wip

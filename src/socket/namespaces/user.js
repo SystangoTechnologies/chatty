@@ -121,11 +121,11 @@ var init = function (io) {
             }
             // Set username through with the message was sent (sender)
             data.sender = this.request.user
-            data.event = 'addMessage'
+            data.event = 'addGroupMessage'
         
             let message
         
-            message = utility.persistOneToOneMsg(app, data)
+            message = utility.persistGroupMsg(app, data)
         
             // Persist one to one Message in async way 
             sendMessage(app, data, true, message.id)
@@ -301,6 +301,7 @@ var init = function (io) {
             if(group){
                 data.id = group.id
                 data.status = 'success'
+                data.users.push(data.owner)
                 io.redisUtility.updateGroup(app, group.id, (data.users && data.users.length > 0)? data.users.join(',') : '' )
                 socket.emit('groupCreated', data)
 
@@ -331,6 +332,30 @@ var init = function (io) {
             let groups = await utility.getAllGroups(app, this.request.user)
             if(groups){
                 socket.emit('allGroups', groups)
+            }           
+        })
+
+        /* GetAllGroups 
+            data: {
+                id: 'groupId'
+            }
+        */
+        socket.on('getAllMembersWithRoles', async function () {
+            // If users is not logged in
+            if(!this.request.user){
+               socket.emit('loginRequired', '')
+               return
+           }
+
+           let members = await utility.getAllMembersWithRoles(app, this.request.user, data.id)
+
+           let response = {
+               groupId: data.id,
+               members: members
+            }
+
+            if(members){
+                socket.emit('allMembersWithRoles', response)
             }           
         })
 
@@ -367,7 +392,7 @@ var init = function (io) {
                 socket.emit('newMemberToGroup', data)
            } else {
                 data.status = 'Duplicate Entry'
-                
+
                 socket.emit('newMemberToGroup', data)
            }       
        })
@@ -393,7 +418,7 @@ var init = function (io) {
 
                 groupMembers.splice( groupMembers.indexOf(data.memberName.toLowerCase()), 1 );
 
-                data.status = 'User Removed'
+                data.status = 'success'
 
                 // Emit group created to all the users
                 if(groupMembers && groupMembers.length > 0){
@@ -424,8 +449,27 @@ var init = function (io) {
         let member = await utility.leaveGroup(app, this.request.user, data)
 
         if(member){
+            let groupMembers = await io.redisUtility.getGroupMembers(app, data.id)
+
+            groupMembers.splice( groupMembers.indexOf(this.request.user), 1 );
+
+            data.status = 'success'
+            data.user = this.request.user
+
+            // Emit group created to all the users
+            if(groupMembers && groupMembers.length > 0){
+                emitMessgaeToUsers(groupMembers, data, 'leftGroup')
+            }
+
+            io.redisUtility.updateGroup(app, data.id, groupMembers.join(','))
+
             socket.emit('leftGroup', data)
-        }           
+        } else {
+            data.status = 'failed'
+            data.user = this.request.user
+
+            socket.emit('leftGroup', data)
+        }          
     })
 
         /* changeMemberRole
@@ -471,14 +515,39 @@ var init = function (io) {
             socket.emit('groupDeleted', data)
 
             // Emit group created to all the users
-            if(groupMembers && groupMembers > 0){
+            if(groupMembers && groupMembers.length > 0){
                 emitMessgaeToUsers(groupMembers, data, 'groupDeleted')
             }
           } else {
             data.status = 'Not authorized'
             socket.emit('groupDeleted', data)  
           }
-        }) 
+        })
+
+        /* Persist Group message and sends messages to clients
+        */
+        socket.on('sendGroupMessageAndPersist', async function (data) {
+            // If users is not logged in
+            if(!this.request.user){
+                socket.emit('loginRequired', '')
+                return
+            }
+            // Set username through with the message was sent (sender)
+            data.sender = this.request.user
+            data.event = 'addGroupMessage'
+        
+            let message
+
+            let groupMembers = await io.redisUtility.getGroupMembers(app, data.groupId)
+
+            if(groupMembers && groupMembers.length > 0){
+                emitMessgaeToUsers(groupMembers, data, 'addGroupMessage')
+            }
+        
+             // Persist one to one Message in async way 
+            message = utility.persistGroupMsg(app, data)
+        })
+        
         
         // Utility methods for sockets events
         let getActiveUsersName = function (application) {
@@ -553,26 +622,27 @@ var init = function (io) {
 
         //Emits messages to group of users
         let emitMessgaeToUsers = async function (users, data, event) {
-        for (let user in users) {
-         
-          let connectedServerName = await io.redisUtility.getServerName(app, users[user])
-  
-          data.event = event
-          
-          // Check if recipient is connected to the current server
-          if (connectedServerName === io.serverName) {
-            let tempSocket = io.localActiveUsersMap.get(users[user].toLowerCase() + '_' + app)
-            if (tempSocket) {
-              // emit message directly to client
-              tempSocket.emit(event, data)
+
+            for (let user in users) {
+            
+                let connectedServerName = await io.redisUtility.getServerName(app, users[user])
+    
+                data.event = event
+            
+                // Check if recipient is connected to the current server
+                if (connectedServerName === io.serverName) {
+                    let tempSocket = io.localActiveUsersMap.get(users[user].toLowerCase() + '_' + app)
+                    if (tempSocket) {
+                        // emit message directly to client
+                        tempSocket.emit(event, data)
+                    }
+                } else {
+                    // publish message on the redis channel to specific server
+                    console.log('emitMessgaeToPlayers----- ' + connectedServerName + JSON.stringify(data) )
+                    io.redisPublishChannel.publish(connectedServerName, JSON.stringify(data))
+                }
             }
-          } else {
-            // publish message on the redis channel to specific server
-            console.log('emitMessgaeToPlayers----- ' + connectedServerName + JSON.stringify(data) )
-            io.redisPublishChannel.publish(connectedServerName, JSON.stringify(data))
-          }
         }
-      }
     })
 }
    
