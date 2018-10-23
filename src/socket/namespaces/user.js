@@ -125,7 +125,7 @@ var init = function (io) {
         
             let message
         
-            message = utility.persistGroupMsg(app, data)
+            message = utility.persistOneToOneMsg(app, data)
         
             // Persist one to one Message in async way 
             sendMessage(app, data, true, message.id)
@@ -340,21 +340,16 @@ var init = function (io) {
                 id: 'groupId'
             }
         */
-        socket.on('getAllMembersWithRoles', async function () {
+        socket.on('getAllMembersWithRoles', async function (data) {
             // If users is not logged in
             if(!this.request.user){
                socket.emit('loginRequired', '')
                return
            }
 
-           let members = await utility.getAllMembersWithRoles(app, this.request.user, data.id)
+           let response = await utility.getAllMembersWithRoles(app, this.request.user, data.id)
 
-           let response = {
-               groupId: data.id,
-               members: members
-            }
-
-            if(members){
+            if(response){
                 socket.emit('allMembersWithRoles', response)
             }           
         })

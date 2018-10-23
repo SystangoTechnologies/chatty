@@ -715,9 +715,20 @@ export async function getAllMembersWithRoles(app, user, groupId){
         if(groupMembers && groupMembers.length>0) {
             members.push({ name: groupMembers[0].owner, role: 'owner'})
             groupMembers[0].Group_Members.map( conversation => members.push({name: conversation.name, role: conversation.role}))
+
+            let response = {
+                groupId: groupId,
+                name: groupMembers[0].dataValues.name,
+                owner: groupMembers[0].dataValues.owner,
+                created_at: groupMembers[0].dataValues.created_at,
+                display_picture: groupMembers[0].dataValues.display_picture,
+                members: members
+            }
+    
+            return response
         }
 
-        return members
+        return false
 
     } catch(err){
         // Wip
