@@ -102,6 +102,17 @@ var init = function (io) {
             let blockedUsersName = await utility.getBlockedUserList(app, this.request.user)
             socket.emit('blockedUsersList', blockedUsersName)
         })
+
+        // BroadCast messages to all users
+        socket.on('broadCastToAllUser', async function (data) {
+            // If users is not logged in
+            if(!this.request.user){
+                socket.emit('loginRequired', '')
+                return
+            }
+
+            socket.broadcast.to(app).emit('broadCastToAllUsers', data)
+        })
     
         // Sends messages to clients
         socket.on('sendMessage', async function (data) {
@@ -143,6 +154,7 @@ var init = function (io) {
                 socket.emit('loginRequired', '')
                 return
             }
+
             await utility.changePendingMessageStatus(app, this.request.user, data)     
         })
     
@@ -372,6 +384,7 @@ var init = function (io) {
 
            if(member) {
                 let groupMembers = await io.redisUtility.getGroupMembers(app, data.id)
+                groupMembers.splice( groupMembers.indexOf(this.request.user), 1 )
 
                 data.status = 'success'
 
@@ -411,7 +424,7 @@ var init = function (io) {
             if(member){
                 let groupMembers = await io.redisUtility.getGroupMembers(app, data.id)
 
-                groupMembers.splice( groupMembers.indexOf(data.memberName.toLowerCase()), 1 );
+                groupMembers.splice( groupMembers.indexOf(data.memberName.toLowerCase()), 1 )
 
                 data.status = 'success'
 
@@ -511,6 +524,9 @@ var init = function (io) {
 
             // Emit group created to all the users
             if(groupMembers && groupMembers.length > 0){
+                
+                groupMembers.splice( groupMembers.indexOf(this.request.user), 1 )
+
                 emitMessgaeToUsers(groupMembers, data, 'groupDeleted')
             }
           } else {
@@ -535,7 +551,10 @@ var init = function (io) {
 
             let groupMembers = await io.redisUtility.getGroupMembers(app, data.groupId)
 
-            if(groupMembers && groupMembers.length > 0){
+            if(groupMembers && groupMembers.length > 0) {
+
+                groupMembers.splice( groupMembers.indexOf(this.request.user), 1 )
+
                 emitMessgaeToUsers(groupMembers, data, 'addGroupMessage')
             }
         
@@ -601,42 +620,65 @@ var init = function (io) {
             let connectedServerName = await io.redisUtility.getServerName(app, data.recipient)
 
             data.event = event
-            
+                    
             // Check if recipient is connected to the current server
             if (connectedServerName === io.serverName) {
-            let tempSocket = io.localActiveUsersMap.get(data.recipient.toLowerCase() + '_' + app)
-            if (tempSocket) {
-                // emit message directly to client
-                tempSocket.emit(event, data)
-            }
+                let tempSocket = io.localActiveUsersMap.get(data.recipient.toLowerCase() + '_' + app)
+                if (tempSocket) {
+                    // emit message directly to client
+                    tempSocket.emit(event, data)
+                }
             } else {
-            // publish message on the redis channel to specific server
-            io.redisPublishChannel.publish(connectedServerName, JSON.stringify(data))
+                // publish message on the redis channel to specific server
+                data.application = app
+                io.redisPublishChannel.publish(connectedServerName, JSON.stringify(data))
+            }
+        }
+
+        let emitEventToGroupofUsersLocally = async function(users, data, event, application){
+            for (let user in users) {
+                let tempSocket = io.localActiveUsersMap.get(users[user].toLowerCase() + '_' + application)
+                if (tempSocket) {
+                    // emit message directly to client
+                    tempSocket.emit(event, data)
+                }
             }
         }
 
         //Emits messages to group of users
         let emitMessgaeToUsers = async function (users, data, event) {
 
-            for (let user in users) {
-            
-                let connectedServerName = await io.redisUtility.getServerName(app, users[user])
-    
-                data.event = event
-            
-                // Check if recipient is connected to the current server
-                if (connectedServerName === io.serverName) {
-                    let tempSocket = io.localActiveUsersMap.get(users[user].toLowerCase() + '_' + app)
-                    if (tempSocket) {
-                        // emit message directly to client
-                        tempSocket.emit(event, data)
-                    }
+            // Grouping messges for the servers
+            let serverGroups = new Map()
+            data.application = app
+            data.event = event
+            data.group = true
+            data.users = users
+
+
+            // Group users by the servers 
+            for (let user in data.users) {
+                let tempUsers = []
+                let connectedServerName = await io.redisUtility.getServerName(app, data.users[user])
+                let members = serverGroups.get(connectedServerName)
+
+                if(members && members.length > 0) {
+                    members.push(data.users[user])  
+                    serverGroups.set(connectedServerName, members)
                 } else {
-                    // publish message on the redis channel to specific server
-                    console.log('emitMessgaeToPlayers----- ' + connectedServerName + JSON.stringify(data) )
-                    io.redisPublishChannel.publish(connectedServerName, JSON.stringify(data))
+                    tempUsers.push(data.users[user])  
+                    serverGroups.set(connectedServerName, tempUsers)
                 }
             }
+
+            // Send messages to the servers for group of users
+            serverGroups.forEach(function(value, key, map) {
+                if(key === io.serverName){
+                    emitEventToGroupofUsersLocally(value, data, event, app)
+                } else{
+                    io.redisPublishChannel.publish(connectedServerName, JSON.stringify(data))
+                }
+            })
         }
     })
 }

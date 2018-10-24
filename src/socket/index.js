@@ -16,12 +16,28 @@ var ioEvents = function (io) {
     // Receives messages published on redis for the client(recievers) connected to the current server
     io.messageListener.on('message', function (channel, message) {
         let msg = JSON.parse(message)
-        let socket = io.localActiveUsersMap.get(msg.recipient + '_' + msg.application)
-        if (socket) {
-            if(msg.event){
-                socket.emit(msg.event, msg)
-            } else{
-                socket.emit('addMessage', msg)
+
+        // Send Message to group of users
+        if(msg.group) {
+            let users = msg.users
+            delete msg[users]; 
+            
+            for (let user in users) {
+                let tempSocket = io.localActiveUsersMap.get(users[user].toLowerCase() + '_' + application)
+                if (tempSocket) {
+                    // emit message directly to client
+                    tempSocket.emit(event, data)
+                }
+            }
+        } else {
+            // Send Message to single user
+            let socket = io.localActiveUsersMap.get(msg.recipient + '_' + msg.application)
+            if (socket) {
+                if(msg.event){
+                    socket.emit(msg.event, msg)
+                } else{
+                    socket.emit('addMessage', msg)
+                }
             }
         }
     })
