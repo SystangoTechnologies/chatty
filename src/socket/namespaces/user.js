@@ -121,7 +121,7 @@ var init = function (io) {
             }
             // Set username through with the message was sent (sender)
             data.sender = this.request.user
-            data.event = 'addGroupMessage'
+            data.event = 'addMessage'
         
             let message
         
