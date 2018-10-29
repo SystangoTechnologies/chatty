@@ -21,12 +21,12 @@ var ioEvents = function (io) {
         if(msg.group) {
             let users = msg.users
             delete msg[users]; 
-            
+
             for (let user in users) {
-                let tempSocket = io.localActiveUsersMap.get(users[user].toLowerCase() + '_' + application)
+                let tempSocket = io.localActiveUsersMap.get(users[user].toLowerCase() + '_' + msg.application)
                 if (tempSocket) {
                     // emit message directly to client
-                    tempSocket.emit(event, data)
+                    tempSocket.emit(msg.event, msg)
                 }
             }
         } else {

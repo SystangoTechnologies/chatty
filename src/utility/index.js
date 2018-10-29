@@ -56,7 +56,7 @@ export async function persistGroupMsg (app, data) {
         transaction = await db.sequelize.transaction()
 
         // Getting the conversation Id 
-        let members = await getAllMembersWithAuth(app, data.sender.toLowerCase(), data.groupId)
+        let members = await getAllMembersWithAuth(app, data.sender.toLowerCase(), data.recipient)
 
         if(members && members.length > 0) {
             let msg = await db.Message.create({
@@ -66,7 +66,7 @@ export async function persistGroupMsg (app, data) {
                 status: 0,
                 type: data.type,
                 clientGeneratedId: data.clientGeneratedId,
-                group_conversation_id: data.groupId
+                group_conversation_id: data.recipient
             }, { transaction: transaction })
 
             let pendingMsg = []
@@ -829,6 +829,36 @@ export async function addMemberToGroup(app, user, data){
     }
 }
 
+export async function editGroup(app, user, data){
+    try{
+        let group = await getGroupByOwnerOrAdmin(app, user, data.id)
+
+        let member = ''
+
+        if(group.length){
+            member = await db.Group_conversation.update({
+                name: data.name,
+                display_picture: data.display_picture
+              }, {
+                where: {
+                    group_conversation_id:  data.id
+                }
+            })
+
+            return true
+        }
+
+        return false       
+
+    } catch(err){
+        if(err.name == 'SequelizeUniqueConstraintError'){
+            return false
+        }
+        // Wip
+        console.log(err)
+    }
+}
+
 // Remove Member to group
 export async function removeMemberFromGroup(app, user, data){
     try{
@@ -1030,13 +1060,13 @@ async function getlatestMessagesForGroupConversation(ids){
         db.sequelize.query("SELECT * FROM ( \
              SELECT * FROM Messages ORDER BY Messages.updated_at DESC ) AS Messages \
                 where Messages.group_conversation_id in \
-                    (select id from Peer_conversations where id in (:conversation_ids)) \
+                    (select id from Group_conversations where id in (:conversation_ids)) \
                         GROUP BY Messages.group_conversation_id",
             { replacements: { conversation_ids: ids }, type: db.sequelize.QueryTypes.SELECT }
         ).then(messages => {
             let messagesMap = new Map()
             for(let element in messages){
-                messagesMap.set(messages[element].peer_conversation_id, messages[element])
+                messagesMap.set(messages[element].group_conversation_id, messages[element])
             }
             resolve(messagesMap)
         })

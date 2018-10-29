@@ -45,7 +45,8 @@ var init = function (io) {
             let userData = {
                 'serverName': io.serverName,
                 'heartBeat': Date.now(),
-                'status': 'active'
+                'status': 'active',
+                'profile_pic': 'https://www.google.co.in/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png'
             }
         
             // Adding username and its last active time on redis cache
@@ -73,7 +74,7 @@ var init = function (io) {
             }
 
             // Get all user list
-            let allUsersName = await getAllUsersName(app)
+            let allUsersName = await getAllUsersList(app)
             socket.emit('allUsersList', allUsersName)
         })
 
@@ -366,6 +367,41 @@ var init = function (io) {
             }           
         })
 
+        /* editGroup
+            data = {
+                id = 'groupId',
+                name = 'groupName',
+                display_picture = 'url'
+            }
+        */
+        socket.on('editGroup', async function (data) {
+            // If users is not logged in
+            if(!this.request.user){
+                socket.emit('loginRequired', '')
+                return
+            }
+
+            let groupUpdated = await utility.editGroup(app, this.request.user, data)
+
+            if(groupUpdated) {
+                let groupMembers = await io.redisUtility.getGroupMembers(app, data.id)
+                groupMembers.splice( groupMembers.indexOf(this.request.user), 1 )
+
+                data.status = 'success'
+
+                // Emit group created to all the users
+                if(groupMembers && groupMembers.length > 0){
+                    emitMessgaeToUsers(groupMembers, data, 'groupUpdated')
+                }
+
+                socket.emit('groupUpdated', data)
+            } else {
+                data.status = 'Not authorized'
+
+                socket.emit('groupUpdated', data)
+            }       
+        })
+
         /* addMemberToGroup
             data = {
                 id = 'groupId',
@@ -536,6 +572,42 @@ var init = function (io) {
         })
 
         /* Persist Group message and sends messages to clients
+            let data = {
+                recipient: groupId,
+                type: 'text',
+                data: text,
+                clientGeneratedId: 
+            }
+        */
+        socket.on('sendGroupMessage', async function (data) {
+            // If users is not logged in
+            if(!this.request.user){
+                socket.emit('loginRequired', '')
+                return
+            }
+            // Set username through with the message was sent (sender)
+            data.sender = this.request.user
+            data.event = 'addGroupMessage'
+        
+            let message
+
+            let groupMembers = await io.redisUtility.getGroupMembers(app, data.recipient)
+
+            if(groupMembers && groupMembers.length > 0) {
+
+                groupMembers.splice( groupMembers.indexOf(this.request.user), 1 )
+
+                emitMessgaeToUsers(groupMembers, data, 'addGroupMessage')
+            }
+        })
+
+        /* Persist Group message and sends messages to clients
+            let data = {
+                recipient: groupId,
+                type: 'text',
+                data: text,
+                clientGeneratedId: 
+            }
         */
         socket.on('sendGroupMessageAndPersist', async function (data) {
             // If users is not logged in
@@ -549,7 +621,7 @@ var init = function (io) {
         
             let message
 
-            let groupMembers = await io.redisUtility.getGroupMembers(app, data.groupId)
+            let groupMembers = await io.redisUtility.getGroupMembers(app, data.recipient)
 
             if(groupMembers && groupMembers.length > 0) {
 
@@ -581,13 +653,17 @@ var init = function (io) {
         }
     
         // Utility methods for sockets events
-        let getAllUsersName = function (application) {
+        let getAllUsersList = function (application) {
           return new Promise(function (resolve, reject) {
             // Get all active users
             io.redisCache.hgetall('OnlineUsers' + '_' + application, async function (_err, users) {
               let activeUsersName = []
               for (var element in users) {
-                activeUsersName.push(element)
+                  let user = {
+                      name: element,
+                      profile_pic: (JSON.parse(users[element]).profile_pic)? JSON.parse(users[element]).profile_pic : ''
+                  }
+                activeUsersName.push(user)
               } // scope of for
               // Active users
               resolve(activeUsersName)
@@ -676,7 +752,7 @@ var init = function (io) {
                 if(key === io.serverName){
                     emitEventToGroupofUsersLocally(value, data, event, app)
                 } else{
-                    io.redisPublishChannel.publish(connectedServerName, JSON.stringify(data))
+                    io.redisPublishChannel.publish(key, JSON.stringify(data))
                 }
             })
         }

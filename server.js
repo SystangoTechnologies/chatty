@@ -12,6 +12,7 @@ app.get('/', function(req, res) {
     res.sendFile(path.join(public, 'index.html'));
 });
 
+
 app.use('/', express.static(public));
 
 // Set the port number
