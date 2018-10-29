@@ -216,8 +216,9 @@ export async function getChatHistory(app, data, currentUser) {
 
          if(peerConversation.length){
             historyMessages = {
-                state: (!peerConversation[0].blocked)? 'active' : 'blocked',
-                blockedBy: (user1 == peerConversation[0].blocked)? user2 : user1,
+                state: (peerConversation[0].user1_conversation_blocked || peerConversation[0].user2_conversation_blocked)? 'blocked' : 'active',
+                user1_conversation_blocked: peerConversation[0].user1_conversation_blocked,
+                user2_conversation_blocked: peerConversation[0].user2_conversation_blocked,
                 currentPage: page,
                 messages: peerConversation.reverse()
              }
@@ -238,9 +239,10 @@ export async function getBlockedUserList(app, user){
             where: {
                 [db.Sequelize.Op.or]: [{user1: user}, {user2: user}],
                 application: app,
-                blocked:{
-                    [db.Sequelize.Op.notIn]: [user, ''],
-                } 
+                [db.Sequelize.Op.or]: [{user1_conversation_blocked: true}, {user2_conversation_blocked: true}]
+                // blocked:{
+                //     [db.Sequelize.Op.notIn]: [user, ''],
+                // } 
             }
         })
 
@@ -463,14 +465,24 @@ export async function blockUser (app, user, data) {
          let user1 = (user < data.user) ? user : data.user,
          user2 = (user > data.user) ? user : data.user
 
-        let peerConversation =  await db.Peer_conversation.update({
-                blocked: data.user
-            },{
-                where: {
-                    user1: user1,
-                    user2: user2,
-                    application: app
-                }
+        let updateFields = {}
+
+        if(user === user1){
+            updateFields = {
+                user1_conversation_blocked: true
+            }
+        } else {
+            updateFields = {
+                user2_conversation_blocked: true
+            }
+        }
+
+        let peerConversation =  await db.Peer_conversation.update(updateFields,{
+            where: {
+                user1: user1,
+                user2: user2,
+                application: app
+            }
         })
 
         return true
@@ -492,29 +504,24 @@ export async function unblockUser (app, user, data) {
         let user1 = (user < data.user) ? user : data.user,
          user2 = (user > data.user) ? user : data.user
 
-        let unblockAllowed =  await db.Peer_conversation.findAll({
+        let updateFields = {}
+
+        if(user === user1){
+            updateFields = {
+            user1_conversation_blocked: false
+            }
+        } else {
+            updateFields = {
+            user2_conversation_blocked: false
+            }
+        }
+
+        let peerConversation =  await db.Peer_conversation.update(updateFields, {
             where: {
                 user1: user1,
                 user2: user2,
-                application: app,
-                blocked: data.user
+                application: app
             }
-        })
-
-        // Not allowed
-        if(!unblockAllowed.length){
-            return false
-        }
-
-        let peerConversation =  await db.Peer_conversation.update({
-                blocked: ''
-            },{
-                where: {
-                    user1: user1,
-                    user2: user2,
-                    application: app,
-                    blocked: data.user
-                }
         })
 
         return true
@@ -533,9 +540,20 @@ export async function archiveMessage (app, user, data) {
         let user1 = (user < data.peer) ? user : data.peer,
          user2 = (user > data.peer) ? user : data.peer
 
-        let peerConversation =  await db.Peer_conversation.update({
-                archivedBy: user
-            },{
+
+        let updateFields = {}
+
+        if(user === user1){
+            updateFields = {
+                user1_conversation_archived: true
+            }
+        } else {
+            updateFields = {
+                user2_conversation_archived: true
+            }
+        }
+
+        let peerConversation =  await db.Peer_conversation.update(updateFields,{
                 where: {
                     user1: user1,
                     user2: user2,
@@ -619,6 +637,119 @@ export async function createGroup(app, user, data){
         // Wip
         console.log(err)
     }
+}
+
+export async function getGroupChatHistory(app, data, currentUser) {
+    try{
+
+        let limit = (data.noOfRecordsPerPage)? data.noOfRecordsPerPage : 50 // number of records per page
+        let offset = 0
+        let page = (data.page)? data.page : 1 // page number
+        offset = limit * (page - 1)
+ 
+        let groupConversation =  await db.Group_conversation.findAll({
+            
+            where: {
+                id: data.id,
+                application: app
+            },
+            attributes: {
+                include: [[db.Sequelize.col('Messages.data'), 'data'],
+                   [db.Sequelize.col('Messages.sender'), 'sender'],
+                   [db.Sequelize.col('Messages.created_at'), 'created_at'],
+                   [db.Sequelize.col('Messages.clientGeneratedId'), 'clientGeneratedId']
+                ]
+            },
+             include: [{
+                 model: db.Message,
+                 where: {
+                    created_at: {
+                        $ne: null 
+                    }                    
+                 },
+                 // through: {attributes: []},
+                 duplicating: false
+             }],
+            order: [[db.Sequelize.col('Messages.created_at'), 'DESC']],
+            limit: limit,
+            offset: offset,
+            raw: true
+         })
+
+         let historyMessages
+
+         if(groupConversation.length){
+            historyMessages = {
+                id: groupConversation[0].id,
+                name: groupConversation[0].name,
+                display_picture: groupConversation[0].display_picture,
+                currentPage: page,
+                messages: groupConversation.reverse()
+             }
+         }
+         
+         return historyMessages
+         
+     } catch(err){
+         console.log(err)
+     }
+}
+
+export async function changGroupMessageStatus (app, user, groupId) {
+    let transaction
+    let msgIds = []
+    let pendingMsgIds = []
+    let pendingMessages
+
+    try {
+
+        user = user.toLowerCase()
+       
+        // Get All pending messages wrt conversation id  
+        pendingMessages = await db.Message.findAll({
+            where: {
+                group_conversation_id: groupId
+            },
+            include: [{
+                model: db.Pending,
+                where: {
+                    recipient: user  
+                },
+            }],
+            order: [['created_at', 'DESC']],
+            raw: true
+        })
+
+        if(pendingMessages && pendingMessages.length>0) {
+            pendingMessages.map( msg => msgIds.push(msg.id))
+            pendingMessages.map( msg => pendingMsgIds.push(msg['Pendings.id']))
+
+            // Update message status
+            let allMessages = await db.Message.update({
+                status:1
+            }, {
+                where: {
+                    id: {
+                        $in: msgIds
+                    }
+                }
+            })
+
+            // Remove message from the pending table
+            db.Pending.destroy({
+                where: {
+                    id: {
+                        $in: pendingMsgIds
+                    }
+                }
+            })
+        }      
+                    
+    } catch (err) {        
+        // WIP
+        console.log(err);
+    }
+
 }
 
 export async function getAllGroups(app, user){
@@ -808,17 +939,23 @@ export async function addMemberToGroup(app, user, data){
     try{
         let group = await getGroupByOwnerOrAdmin(app, user, data.id)
 
-        let member = ''
+        let members = []
 
         if(group.length){
-            member = await db.Group_Member.create({
-                role: (data.role.toLowerCase() == 'admin')? 'admin' : 'normal',
-                name: data.memberName.toLowerCase(),
-                group_conversation_id: group[0].dataValues.id
-            })
+            for(let index in data.members){
+                members.push({
+                    role: 'normal',
+                    name: data.members[index].toLowerCase(),
+                    group_conversation_id: data.id
+                })
+            }
+
+            db.Group_Member.bulkCreate(members)
+
+            return true
         }
 
-        return member
+        return false        
 
     } catch(err){
         if(err.name == 'SequelizeUniqueConstraintError'){
@@ -1006,7 +1143,8 @@ async function groupAndSortResults(user, conversationIds, peerConversationMap, g
             type: (latestMsg)? latestMsg.type: '',
             peer_conversation_id: tempConversation.id,
             group_conversation_id: tempConversation.id,
-            archivedBy: (tempConversation.archivedBy)? tempConversation.archivedBy : '',
+            user1_conversation_archived: (tempConversation.user1_conversation_archived)? tempConversation.user1_conversation_archived : '',
+            user2_conversation_archived: (tempConversation.user2_conversation_archived)? tempConversation.user2_conversation_archived : '',
             pendingCount: (pending) ? pending.pendingCount: 0,
             display_picture: (tempConversation.display_picture)? tempConversation.display_picture : '',
             created_at: (latestMsg)? latestMsg.created_at : (tempConversation.name)? tempConversation.created_at : '',
@@ -1039,11 +1177,11 @@ async function groupAndSortResults(user, conversationIds, peerConversationMap, g
 
 async function getlatestMessagesForPeerConversation(ids){
     return new Promise((resolve, reject) => {
-        db.sequelize.query("SELECT * FROM ( \
-             SELECT * FROM Messages ORDER BY Messages.updated_at DESC ) AS Messages \
-                where Messages.peer_conversation_id in \
-                    (select id from Peer_conversations where id in (:conversation_ids)) \
-                        GROUP BY Messages.peer_conversation_id",
+        db.sequelize.query("SELECT t1.* \
+                FROM chatty.Messages t1 WHERE \
+                    t1.id = (SELECT t2.id FROM chatty.Messages t2 \
+                    WHERE t2.peer_conversation_id = t1.peer_conversation_id ORDER BY t2.updated_at DESC LIMIT 1) and \
+                    t1.peer_conversation_id in (:conversation_ids)",
             { replacements: { conversation_ids: ids }, type: db.sequelize.QueryTypes.SELECT }
         ).then(messages => {
             let messagesMap = new Map()
@@ -1057,11 +1195,11 @@ async function getlatestMessagesForPeerConversation(ids){
 
 async function getlatestMessagesForGroupConversation(ids){
     return new Promise((resolve, reject) => {
-        db.sequelize.query("SELECT * FROM ( \
-             SELECT * FROM Messages ORDER BY Messages.updated_at DESC ) AS Messages \
-                where Messages.group_conversation_id in \
-                    (select id from Group_conversations where id in (:conversation_ids)) \
-                        GROUP BY Messages.group_conversation_id",
+        db.sequelize.query("SELECT t1.* \
+        FROM chatty.Messages t1 WHERE \
+            t1.id = (SELECT t2.id FROM chatty.Messages t2 \
+            WHERE t2.group_conversation_id = t1.group_conversation_id ORDER BY t2.updated_at DESC LIMIT 1) and \
+            t1.group_conversation_id in (:conversation_ids)",
             { replacements: { conversation_ids: ids }, type: db.sequelize.QueryTypes.SELECT }
         ).then(messages => {
             let messagesMap = new Map()
@@ -1094,9 +1232,25 @@ async function getConversation (app, sender, recipient) {
                 user1: user1,
                 user2: user2,
                 application: app,
-                archivedBy: ''
+                user1_conversation_blocked: false,
+                user2_conversation_blocked: false,
+                user1_conversation_archived: false,
+                user2_conversation_archived: false
             }
         })
+
+        if(peerConversation[0].dataValues.user1_conversation_archived || peerConversation[0].dataValues.user2_conversation_archived){
+            let updateConversation =  await db.Peer_conversation.update({
+                user1_conversation_archived: false,
+                user2_conversation_archived: false
+            },{
+                    where: {
+                        user1: user1,
+                        user2: user2,
+                        application: app
+                    }
+            })
+        }
         
         return peerConversation[0].dataValues;
     } catch(err){
@@ -1122,6 +1276,7 @@ async function getConversationIds (app, user) {
         if(peerConversationIds && peerConversationIds.length>0) {
             peerConversationIds.map( conversation => ids.push(conversation.dataValues.id))
         }
+
         return ids;
     } catch(err){
 

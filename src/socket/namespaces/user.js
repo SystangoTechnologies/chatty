@@ -420,16 +420,17 @@ var init = function (io) {
 
            if(member) {
                 let groupMembers = await io.redisUtility.getGroupMembers(app, data.id)
-                groupMembers.splice( groupMembers.indexOf(this.request.user), 1 )
 
                 data.status = 'success'
+
+                for(let index in data.members){
+                    groupMembers.push(data.members[index].toLowerCase())
+                }
 
                 // Emit group created to all the users
                 if(groupMembers && groupMembers.length > 0){
                     emitMessgaeToUsers(groupMembers, data, 'newMemberToGroup')
                 }
-
-                groupMembers.push(data.memberName.toLowerCase())
 
                 io.redisUtility.updateGroup(app, data.id, groupMembers.join(','))
 
@@ -632,6 +633,42 @@ var init = function (io) {
         
              // Persist one to one Message in async way 
             message = utility.persistGroupMsg(app, data)
+        })
+
+         /* Get Group Chat History
+             data = {
+               id: 'groupId',
+               noOfRecordsPerPage: 50,
+               page: 1
+            }
+        */  
+        socket.on('getGroupChatHistory', async function (data) {
+            // If users is not logged in
+            if(!this.request.user){
+                socket.emit('loginRequired', '')
+                return
+            }
+        
+            let msg = await  utility.getGroupChatHistory(app, data, this.request.user)   
+            socket.emit('addGroupChatHistoryMessages', msg)
+        
+            await utility.changGroupMessageStatus(app, this.request.user, data.id)
+        })
+
+        /*  Update pending message status
+            data = {
+                id: 'groupId'
+            }
+        */
+        socket.on('updateGroupPendingMessages', async function (data) {
+            
+            // If users is not logged in
+            if(!this.request.user){
+                socket.emit('loginRequired', '')
+                return
+            }
+
+            await utility.changGroupMessageStatus(app, this.request.user, data.id)
         })
         
         
