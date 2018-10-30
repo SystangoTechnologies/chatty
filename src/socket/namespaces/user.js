@@ -523,7 +523,7 @@ var init = function (io) {
                 memberName = ''
             }
         */
-       socket.on('changeMemberRole', async function (data) {
+        socket.on('changeMemberRole', async function (data) {
         // If users is not logged in
         if(!this.request.user){
             socket.emit('loginRequired', '')
@@ -533,8 +533,18 @@ var init = function (io) {
         let member = await utility.changeMemberRole(app, this.request.user, data)
 
         if(member){
-            socket.emit('updatedMemberRole', data)
-        }           
+            data.status = 'success'
+            let groupMembers = await io.redisUtility.getGroupMembers(app, data.id)
+
+            // Emit group created to all the users
+            if(groupMembers && groupMembers.length > 0){
+
+                emitMessgaeToUsers(groupMembers, data, 'updatedMemberRole')
+            }
+        } else {
+            data.status = 'Not authorized'
+            socket.emit('updatedMemberRole', data)  
+        }          
     })
         
         /* Delete Group
