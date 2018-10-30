@@ -456,6 +456,28 @@ export async function deleteMessages(user, message){
     }
 }
 
+
+export async function deleteGroupMessages(user, data){
+    let status
+    user = user.toLowerCase()
+
+    try{
+        let status = await db.Message.destroy({
+            where: {
+                sender: user,
+                group_conversation_id: data.id,
+                clientGeneratedId: {
+                    $in: data.clientGeneratedId
+                }
+            }
+        })
+        return true
+    } catch(err){
+        return false
+        console.log(err)
+    }
+}
+
 export async function blockUser (app, user, data) {
     try{
         user = user.toLowerCase()

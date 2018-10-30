@@ -405,8 +405,7 @@ var init = function (io) {
         /* addMemberToGroup
             data = {
                 id = 'groupId',
-                role = 'normal',
-                memberName = 'xyz'
+                members = 'xyz'
             }
         */
         socket.on('addMemberToGroup', async function (data) {
@@ -669,6 +668,39 @@ var init = function (io) {
             }
 
             await utility.changGroupMessageStatus(app, this.request.user, data.id)
+        })
+
+        /* Delete Message
+            data = {
+                groupId: 'groupId',
+                clientGeneratedId: ['generatedId', 'generatedId']
+            }
+        */
+
+        socket.on('deleteGroupMessage', async function (data) {
+            let status = await utility.deleteGroupMessages(this.request.user, data)
+            
+            if(!status){
+                data.status = 'Not Authorized'
+                socket.emit('groupMessageDeleted', data)
+                return
+            }
+        
+            let deleteMessage = {
+                clientGeneratedId: data.clientGeneratedId,
+                sender: this.request.user,
+                group: data.id,
+                event: 'groupMessageDeleted',
+                application: app,
+                status: 'success'
+            }
+
+            let groupMembers = await io.redisUtility.getGroupMembers(app, data.id)
+
+            if(groupMembers && groupMembers.length > 0) {
+
+                emitMessgaeToUsers(groupMembers, deleteMessage, 'groupMessageDeleted')
+            }
         })
         
         
