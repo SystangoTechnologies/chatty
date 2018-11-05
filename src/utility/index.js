@@ -62,7 +62,7 @@ export async function persistGroupMsg (app, data) {
             let msg = await db.Message.create({
                 data: data.data,
                 sender: data.sender.toLowerCase(),
-                url: '',
+                url: (data.url)? data.url : '',
                 status: 0,
                 type: data.type,
                 clientGeneratedId: data.clientGeneratedId,
@@ -80,12 +80,17 @@ export async function persistGroupMsg (app, data) {
             }
 
             db.Pending.bulkCreate(pendingMsg)
+
+            // Commiting the transaction
+            await transaction.commit()
+
+            return true
         }
 
         // Commiting the transaction
         await transaction.commit()
 
-        return true
+        return false
 
     } catch(err){
         // Rollback the transaction
@@ -312,6 +317,10 @@ export async function changePendingMessageStatus (app, user, data) {
     let pendingMessages
 
     try {
+
+        if(!data.peer ){
+            return false
+        }
 
         user = user.toLowerCase()
         data.peer = data.peer.toLowerCase()
@@ -837,7 +846,7 @@ export async function getAllMembersWithAuth(app, user, groupId){
             groupMembers[0].Group_Members.map( conversation => members.push(conversation.name))
         }
 
-        if(members.indexOf('anurag') >= 0){
+        if(members.indexOf(user) >= 0){
             return members
         }
 
@@ -849,7 +858,7 @@ export async function getAllMembersWithAuth(app, user, groupId){
     }
 }
 
-export async function getAllMembersWithRoles(app, user, groupId){
+export async function getGroupDetails(app, user, groupId){
     try{
         let groupMembers = await db.Group_conversation.findAll({
             where: {
@@ -990,6 +999,8 @@ export async function addMemberToGroup(app, user, data){
 
 export async function editGroup(app, user, data){
     try{
+        user = user.toLowerCase()
+
         let group = await getGroupByOwnerOrAdmin(app, user, data.id)
 
         let member = ''
@@ -1000,7 +1011,7 @@ export async function editGroup(app, user, data){
                 display_picture: data.display_picture
               }, {
                 where: {
-                    group_conversation_id:  data.id
+                    id:  data.id
                 }
             })
 
@@ -1153,7 +1164,7 @@ async function groupAndSortResults(user, conversationIds, peerConversationMap, g
     conversationIds.forEach(element => {
         let tempConversation = (peerConversationMap.get(element)) ? peerConversationMap.get(element) : groupConversationMap.get(element)
         let latestMsg = (latestMessagesPeerCoversation.get(element)) ? latestMessagesPeerCoversation.get(element) : latestMessagesGroupCoversation.get(element)
-        let pending  = pendingMessageCount.get(element)
+        let pending  = (pendingMessageCount)? pendingMessageCount.get(element): ''
         msg = {
             conversation_id: element,
             group: (tempConversation.user1)? false : true,

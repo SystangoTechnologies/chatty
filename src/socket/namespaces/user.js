@@ -40,7 +40,7 @@ var init = function (io) {
         socket.on('login', async function (userName) {
          
             // Adding user object to socket session
-            socket.request.user = userName
+            socket.request.user = userName.toLowerCase()
         
             let userData = {
                 'serverName': io.serverName,
@@ -348,22 +348,22 @@ var init = function (io) {
             }           
         })
 
-        /* GetAllGroups 
+        /* Update Group Details 
             data: {
                 id: 'groupId'
             }
         */
-        socket.on('getAllMembersWithRoles', async function (data) {
+        socket.on('getGroupDetails', async function (data) {
             // If users is not logged in
             if(!this.request.user){
                socket.emit('loginRequired', '')
                return
            }
 
-           let response = await utility.getAllMembersWithRoles(app, this.request.user, data.id)
+           let response = await utility.getGroupDetails(app, this.request.user, data.id)
 
             if(response){
-                socket.emit('allMembersWithRoles', response)
+                socket.emit('groupDetails', response)
             }           
         })
 
@@ -381,31 +381,45 @@ var init = function (io) {
                 return
             }
 
+            data.activity = 'editGroup'
+
             let groupUpdated = await utility.editGroup(app, this.request.user, data)
 
             if(groupUpdated) {
                 let groupMembers = await io.redisUtility.getGroupMembers(app, data.id)
-                groupMembers.splice( groupMembers.indexOf(this.request.user), 1 )
+                // groupMembers.splice( groupMembers.indexOf(this.request.user), 1 )
 
                 data.status = 'success'
 
+                data.updatedBy = this.request.user
+
                 // Emit group created to all the users
                 if(groupMembers && groupMembers.length > 0){
-                    emitMessgaeToUsers(groupMembers, data, 'groupUpdated')
+
+                    let response = await utility.getGroupDetails(app, this.request.user, data.id)
+
+                    if(response){
+
+                        emitMessgaeToUsers(groupMembers, response, 'groupUpdated')
+                    }
+
+                    // emitMessgaeToUsers(groupMembers, data, 'groupUpdated')
                 }
 
-                socket.emit('groupUpdated', data)
+                // socket.emit('groupUpdated', data)
             } else {
-                data.status = 'Not authorized'
+                data.status = 'failed'
 
-                socket.emit('groupUpdated', data)
-            }       
+                data.error = 'Not authorized'
+            }
+            
+            socket.emit('groupUpdateStatus', data)
         })
 
         /* addMemberToGroup
             data = {
                 id = 'groupId',
-                members = 'xyz'
+                members = ['xyz']
             }
         */
         socket.on('addMemberToGroup', async function (data) {
@@ -413,14 +427,16 @@ var init = function (io) {
             if(!this.request.user){
                socket.emit('loginRequired', '')
                return
-           }
+            }
+
+            data.status = 'success'
+
+            data.activity = 'addMemberToGroup'
 
            let member = await utility.addMemberToGroup(app, this.request.user, data)
 
            if(member) {
                 let groupMembers = await io.redisUtility.getGroupMembers(app, data.id)
-
-                data.status = 'success'
 
                 for(let index in data.members){
                     groupMembers.push(data.members[index].toLowerCase())
@@ -428,17 +444,27 @@ var init = function (io) {
 
                 // Emit group created to all the users
                 if(groupMembers && groupMembers.length > 0){
-                    emitMessgaeToUsers(groupMembers, data, 'newMemberToGroup')
+                    
+                    io.redisUtility.updateGroup(app, data.id, groupMembers.join(','))
+
+                    //emitMessgaeToUsers(groupMembers, data, 'newMemberToGroup')
+                    let response = await utility.getGroupDetails(app, this.request.user, data.id)
+
+                    if(response){
+                        response.status = 'success'
+
+                        emitMessgaeToUsers(groupMembers, response, 'groupUpdated')
+                    }
                 }
 
-                io.redisUtility.updateGroup(app, data.id, groupMembers.join(','))
-
-                socket.emit('newMemberToGroup', data)
+                // socket.emit('newMemberToGroup', data)
            } else {
-                data.status = 'Duplicate Entry'
+                data.status = 'failed'
 
-                socket.emit('newMemberToGroup', data)
-           }       
+                data.error = 'User Already Present'
+           }
+
+           socket.emit('groupUpdateStatus', data)       
        })
 
         /* removeMemberFromGroup
@@ -455,66 +481,92 @@ var init = function (io) {
                 return
             }
 
+            data.status = 'success'
+
+            data.activity = 'addMemberToGroup'
+
             let member = await utility.removeMemberFromGroup(app, this.request.user, data)
 
             if(member){
                 let groupMembers = await io.redisUtility.getGroupMembers(app, data.id)
 
-                groupMembers.splice( groupMembers.indexOf(data.memberName.toLowerCase()), 1 )
-
-                data.status = 'success'
-
                 // Emit group created to all the users
                 if(groupMembers && groupMembers.length > 0){
-                    emitMessgaeToUsers(groupMembers, data, 'memberRemovedFromGroup')
+                    // emitMessgaeToUsers(groupMembers, data, 'memberRemovedFromGroup')
+
+                    let response = await utility.getGroupDetails(app, this.request.user, data.id)
+
+                    if(response){
+                        response.status = 'success'
+                        emitMessgaeToUsers(groupMembers, response, 'groupUpdated')
+                    }
+
+                    socket.emit('groupUpdated', response)
+
+                    groupMembers.splice( groupMembers.indexOf(data.memberName.toLowerCase()), 1 )
+
+                    io.redisUtility.updateGroup(app, data.id, groupMembers.join(','))
                 }
 
-                io.redisUtility.updateGroup(app, data.id, groupMembers.join(','))
-
-                socket.emit('memberRemovedFromGroup', data)
             } else {
-                data.status = 'User Not Found'
-                socket.emit('memberRemovedFromGroup', data)
-            }        
+                data.status = 'failed'
+
+                data.error = 'User Not Found'
+            }
+            
+            socket.emit('groupUpdateStatus', data)
         })
 
-         /* leaveGroup
+        /* leaveGroup
             data = {
                 id = 'groupId'
             }
         */
-       socket.on('leaveGroup', async function (data) {
-        // If users is not logged in
-        if(!this.request.user){
-            socket.emit('loginRequired', '')
-            return
-        }
-
-        let member = await utility.leaveGroup(app, this.request.user, data)
-
-        if(member){
-            let groupMembers = await io.redisUtility.getGroupMembers(app, data.id)
-
-            groupMembers.splice( groupMembers.indexOf(this.request.user), 1 );
-
-            data.status = 'success'
-            data.user = this.request.user
-
-            // Emit group created to all the users
-            if(groupMembers && groupMembers.length > 0){
-                emitMessgaeToUsers(groupMembers, data, 'leftGroup')
+        socket.on('leaveGroup', async function (data) {
+            // If users is not logged in
+            if(!this.request.user){
+                socket.emit('loginRequired', '')
+                return
             }
 
-            io.redisUtility.updateGroup(app, data.id, groupMembers.join(','))
+            data.status = 'success'
 
-            socket.emit('leftGroup', data)
-        } else {
-            data.status = 'failed'
-            data.user = this.request.user
+            data.activity = 'leaveGroup'
 
-            socket.emit('leftGroup', data)
-        }          
-    })
+            let member = await utility.leaveGroup(app, this.request.user, data)
+
+            if(member){
+                let groupMembers = await io.redisUtility.getGroupMembers(app, data.id)
+
+                groupMembers.splice( groupMembers.indexOf(this.request.user), 1 );
+
+                data.status = 'success'
+                data.user = this.request.user
+
+                // Emit group created to all the users
+                if(groupMembers && groupMembers.length > 0){
+                // emitMessgaeToUsers(groupMembers, data, 'leftGroup')
+                let response = await utility.getGroupDetails(app, this.request.user, data.id)
+
+                    if(response){
+                        response.status = 'success'
+                        emitMessgaeToUsers(groupMembers, response, 'groupUpdated')
+                    }
+
+                    // socket.emit('groupUpdated', response)
+
+                    io.redisUtility.updateGroup(app, data.id, groupMembers.join(','))
+                }
+
+            } else {
+
+                data.status = 'failed'
+                
+                data.error = 'Group not found'
+            }
+            
+            socket.emit('groupUpdateStatus', data)
+        })
 
         /* changeMemberRole
             data = {
@@ -530,6 +582,10 @@ var init = function (io) {
             return
         }
 
+        data.status = 'success'
+
+        data.activity = 'changeMemberRole'
+
         let member = await utility.changeMemberRole(app, this.request.user, data)
 
         if(member){
@@ -539,12 +595,23 @@ var init = function (io) {
             // Emit group created to all the users
             if(groupMembers && groupMembers.length > 0){
 
-                emitMessgaeToUsers(groupMembers, data, 'updatedMemberRole')
+                // emitMessgaeToUsers(groupMembers, data, 'updatedMemberRole')
+                let response = await utility.getGroupDetails(app, this.request.user, data.id)
+
+                if(response){
+
+                    response.status = 'success'
+
+                    emitMessgaeToUsers(groupMembers, response, 'groupUpdated')
+                }
             }
         } else {
-            data.status = 'Not authorized'
-            socket.emit('updatedMemberRole', data)  
-        }          
+            data.status = 'failed'
+
+            data.error = 'Member not found/Unauthorized'
+        }
+        
+        socket.emit('groupUpdateStatus', data)  
     })
         
         /* Delete Group
@@ -566,7 +633,7 @@ var init = function (io) {
             data.status = 'success'
             let groupMembers = await io.redisUtility.getGroupMembers(app, data.id)
             io.redisUtility.deleteGroup(app, data.id)
-            socket.emit('groupDeleted', data)
+             socket.emit('groupDeleted', data)
 
             // Emit group created to all the users
             if(groupMembers && groupMembers.length > 0){
@@ -576,7 +643,10 @@ var init = function (io) {
                 emitMessgaeToUsers(groupMembers, data, 'groupDeleted')
             }
           } else {
-            data.status = 'Not authorized'
+            data.status = 'failed'
+
+            data.error = 'Not authorized'
+
             socket.emit('groupDeleted', data)  
           }
         })
