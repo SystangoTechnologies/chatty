@@ -53,6 +53,8 @@ services:
   redis:
     image: "redis:alpine"
     restart: always
+    volumes:
+      - redis-data:/data
     ports:
       - "6379:6379"
     environment:
