@@ -418,7 +418,12 @@ export async function getinboxMessages (app, user, data) {
         conversationIds = conversationIds.concat([... groupConversationMap.keys()])
 
         if(conversationIds && conversationIds.length > 0){
-            let pendingMessageCount = await getPendingMessageCount (app, user, conversationIds)
+
+            let peerPendingMessages = await getPendingMessageCountForPeer(app, user, conversationIds)
+
+            let groupPendingMessages = await getPendingMessageCountForGroup(app, user, conversationIds)
+    
+            let pendingMessageCount = await mergePendingMessage(peerPendingMessages, groupPendingMessages)
 
             let latestMessagesPeerCoversation = await getlatestMessagesForPeerConversation(conversationIds)
 
@@ -835,9 +840,7 @@ export async function getAllMembersWithAuth(app, user, groupId){
             include: {
                 model: db.Group_Member
             }           
-        })
-
-        
+        })        
 
         let members = []        
 
@@ -1317,14 +1320,14 @@ async function getConversationIds (app, user) {
     
 }
 
-async function getPendingMessageCount (app, user, conversationIds) {
+async function getPendingMessageCountForPeer (app, user, conversationIds) {
     try{
        // check sender and recipient
        if(!user){
            return false;
        }
 
-       let peerPendingMessages, groupPendingMessages
+       let peerPendingMessages = []
        user = user.toLowerCase()
        
         if(conversationIds && conversationIds.length > 0){
@@ -1347,7 +1350,27 @@ async function getPendingMessageCount (app, user, conversationIds) {
                 group: db.Sequelize.col('Message.peer_conversation_id'),
                 raw: true
             })
+        }
 
+        return peerPendingMessages
+        
+    } catch(err){
+        console.log(err)
+    }
+}
+
+async function getPendingMessageCountForGroup (app, user, conversationIds) {
+    try{
+       // check sender and recipient
+       if(!user){
+           return false;
+       }
+
+       let groupPendingMessages = []
+       user = user.toLowerCase()
+       
+        if(conversationIds && conversationIds.length > 0){
+            // Fetching messages for the current user
             groupPendingMessages = await db.Message.findAll({
                 where: {
                     group_conversation_id: {
@@ -1367,19 +1390,25 @@ async function getPendingMessageCount (app, user, conversationIds) {
                 raw: true
             })
         }
-        let pendingMessagesMap = new Map()
 
-        for(let element in peerPendingMessages){
-            pendingMessagesMap.set(peerPendingMessages[element].peer_conversation_id, peerPendingMessages[element])
-        }
-
-        for(let element in groupPendingMessages){
-            pendingMessagesMap.set(groupPendingMessages[element].group_conversation_id, groupPendingMessages[element])
-        }
-
-        return pendingMessagesMap
+        return groupPendingMessages
         
     } catch(err){
         console.log(err)
     }
 }
+
+async function mergePendingMessage(peerPendingCount, groupPendingCount){
+    let pendingMessagesMap = new Map()
+
+    for(let element in peerPendingCount){
+        pendingMessagesMap.set(peerPendingCount[element].peer_conversation_id, peerPendingCount[element])
+    }
+
+    for(let element in groupPendingCount){
+        pendingMessagesMap.set(groupPendingCount[element].group_conversation_id, groupPendingCount[element])
+    }
+
+    return pendingMessagesMap
+} 
+

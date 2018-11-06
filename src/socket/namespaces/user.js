@@ -731,7 +731,7 @@ var init = function (io) {
             let msg = await  utility.getGroupChatHistory(app, data, this.request.user)   
             socket.emit('addGroupChatHistoryMessages', msg)
         
-            await utility.changGroupMessageStatus(app, this.request.user, data.id)
+            utility.changGroupMessageStatus(app, this.request.user, data.id)
         })
 
         /*  Update pending message status
