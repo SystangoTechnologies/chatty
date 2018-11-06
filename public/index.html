@@ -81,7 +81,7 @@
 		  <br>
 
 		   <p class="lead chat-user">Inbox messages</p>
-		<div id="messagess">
+		<div id="group-status" style="display: none">
 		</div>
 	    <ul id="messages">
 	    </ul>
@@ -104,7 +104,7 @@
 				// var socket = io('http://baseball.draft2teams.sockets.staging.strat-o-matic.com/users', { transports: ['websocket'] });
 				// var parentServerSocket = io('http://baseball.draft2teams.sockets.staging.strat-o-matic.com/socket.io/userss?transport=websocket&token=xyz');
 				// var socket = io('http://baseball.draft2teams.sockets.staging.strat-o-matic.com/users?application=demo', { transports: ['websocket'] });
-				var socket = io('http://127.0.0.1:3000/users?application=demo', { transports: ['websocket'] });
+				var socket = io('http://127.0.0.1:3000/users?application=draft2teams', { transports: ['websocket'] });
 				let username;
       			let userLogedIn = false;
 
@@ -144,7 +144,8 @@
 					let groupName = $('.group-name').val();
 					if(/^[a-z0-9]+$/.test(groupName)){
 						let data = {
-							name: groupName
+							name: groupName,
+							users: ['windows1', 'windows2', 'windows3']
 						}
 						socket.emit('createGroup', data);
 						console.log('create-group' + data);
@@ -155,12 +156,10 @@
 
 				$('.delete-group').click(function() {
 					let groupName = $('.group-name').val();
-					if(/^[a-z0-9]+$/.test(groupName)){
-						let data = {
-							name: groupName
+					let data = {
+							id: groupName
 						}
 						socket.emit('deleteGroup', data);
-					}
 				})
 
 				socket.on('loginsuccess', function(){
@@ -181,6 +180,10 @@
 					socket.emit('getInboxMessages', data)
 
 					socket.emit('getAllGroups')
+
+					socket.emit('getBlockedUserList')
+
+					socket.emit('getAllUserList')
 				});
 
 
@@ -216,7 +219,7 @@
 
 					let html = ''
 					for(var group of data) {						
-						html +=  `<div class="active-group-box"><li  class="list-group-item list-group-item-action active-group-list" id="${group.name}" role="${group.role}">${group.name}</li></div>`;		
+						html +=  `<div class="active-group-box"><li  class="list-group-item list-group-item-action active-group-list" id="${group.id}" role="${group.role}">${group.name}</li></div>`;		
 					}
 						
 					$('.list-group-groups').html('');
@@ -245,9 +248,8 @@
 					let data = '';
 					if(memberName){
 						 data = {
-							groupName: groupName,
-							role: 'admin',
-							memberName: memberName
+							id: groupName,
+							members: [memberName]
 						}
 					}
 					socket.emit('addMemberToGroup', data)
@@ -260,7 +262,7 @@
 					let data = '';
 					if(memberName){
 						data = {
-							groupName: groupName,
+							id: groupName,
 							memberName: memberName
 						}
 					}
@@ -283,7 +285,7 @@
 					let data = '';
 					if(memberName){
 						 data = {
-							groupName: groupName,
+							id: groupName,
 							role: 'admin',
 							memberName: memberName
 						}
@@ -326,7 +328,10 @@
 					let msgType = $('.msg-persistance').text()
 					if(msgType == 'Off record'){
 						socket.emit('sendMessage', data)
-					} else {
+					} else if ( $('#group-status').text() == 'group') {
+						data.groupId = recipient;
+						socket.emit('sendGroupMessageAndPersist', data)
+					}else {
 						socket.emit('sendMessageAndPersist', data)
 					}
 						
@@ -361,6 +366,9 @@
 					let msgType = $('.msg-persistance').text()
 					if(msgType == 'Off record'){
 						socket.emit('sendMessage', data)
+					} else if ( $('#group-status').text() == 'group') {
+						data.groupId = recipient;
+						socket.emit('sendGroupMessageAndPersist', data)
 					} else {
 						socket.emit('sendMessageAndPersist', data)
 					}
@@ -371,6 +379,18 @@
 				socket.on('newMemberToGroup', function(msg){
 					console.log('newMemberToGroup  ---> '+ msg)
 				})
+
+				socket.on('addGroupMessage', function(msg){
+					console.log('addGroupMessage  ---> '+ msg)
+					if(msg.type === 'text' && ((msg.recipient === $('#chat-user-name').text()) || $('#chat-user-name').text() == "" )){
+							var time = new Date(msg.created_at);
+							// $('#messages').append($('<li class=\'chat-messages\' id=' + msg.clientGeneratedId + '>').text( msg.sender + ' : ' + msg.data).append($('<sub style=\'color: #28a745;\'>').text( time.getHours()+':' + time.getMinutes() )));
+								$('#messages').append($('<li class=\'chat-messages\' id=' + msg.clientGeneratedId + '>').text( msg.sender + ' : ' + msg.data).append($('<sub style=\'color: #28a745;\'>').text( '12:45' )));
+							// $('#messagess').append("<div class=\"media text-muted pt-3\"> <p class='media-body pb-3 mb-0 small lh-125 border-bottom border-gray'> <strong class='d-block text-gray-dark'>${msg.sender}</strong>Donec id elit non mi porta gravida at eget metus. Fusce dapibus, tellus ac cursus commodo, tortor mauris condimentum nibh, ut fermentum massa justo sit amet risus.</p></div>");
+							window.scrollTo(0, document.body.scrollHeight);
+					} 
+				})
+
 
 				socket.on('addMessage', function(msg){
 						console.log(msg);					
@@ -399,7 +419,7 @@
 				socket.on('addInboxMessages', function(data){
 					for(var msg of data) {
 						let convUser = (msg.user1 === username)? msg.user2 : msg.user1;
-						$('#messages').append($('<li>').text( 'Conversation with ' + convUser + " -- " + msg.sender + ' : ' + msg.data));
+						$('#messages').append($('<li>').text( 'Conversation with ' + convUser + " -- " + msg.sender + ' : ' + msg.data + '  PendingCount='+ msg.pendingCount));
 						window.scrollTo(0, document.body.scrollHeight);
 					}
 				})
@@ -451,6 +471,29 @@
 					}			
 				});
 
+
+				socket.on('addGroupChatHistoryMessages', function(data){
+					if(data.id !== $('#chat-user-name').text()){
+						return
+					}
+					for(var msg of data.messages) {
+						var time = new Date(msg.created_at);
+						if( msg.sender !== username){							
+							$('#messages').append($('<li>').text( msg.sender + ' : ' + msg.data + "  ").append($('<sub style=\'color: #28a745;\'>').text( time.getHours()+':' + time.getMinutes() )));
+							window.scrollTo(0, document.body.scrollHeight);
+						} else if( msg.sender === username ) {
+							$('#messages').append($('<li style="text-align: right;">').text(msg.sender + ' : ' +  msg.data + "  ").append($('<sub style=\'color: #28a745;\'>').text( time.getHours()+':' + time.getMinutes() )));
+							window.scrollTo(0, document.body.scrollHeight);
+						} else {
+
+						}
+					}
+					if (data.state === 'blocked'){
+						$('#messages').append($('<li style="text-align: center;">').text('Converstion is Blocked'));
+						$('.block-user').text("Unblock User")
+					}			
+				});
+
 				$(document).on('click','.active-user-list',function(){
 					$('#chat-user-name').text(this.id)
 					$('.chat-user').html('');
@@ -458,6 +501,7 @@
 					$('.message-input-div').show();
 					$('.msg-persistance').show();
 					$('.block-user').show();
+					$('#group-status').text('');
 					$('.group-admin-options').hide();
 					
 					$('.chat-user').append('Chatting with <i>' + this.id +'</i>');
@@ -478,11 +522,13 @@
 
 				$(document).on('click','.active-group-list',function(){
 					$('#chat-user-name').text(this.id)
+					// $('#chat-group-id').text(this.id)
 					$('.chat-user').html('');
 					$('#messages').text('')
 					$('.message-input-div').show();
 					$('.msg-persistance').show();
-					let role = this.getAttribute("role")
+					let role = this.getAttribute("role");
+					$('#group-status').text('group');
 					if(role == 'owner'){
 						$('.group-admin-options').show();
 					}					
@@ -492,7 +538,7 @@
 					
 					$('.chat-user').append('Chatting in <i>' + this.id +' Group with the role '+ role +'</i>');
 					let data = {
-						peer: this.id,
+						id: this.id,
 						noOfRecordsPerPage: 100,
 						page: 1
 					}
@@ -503,7 +549,7 @@
 
 					//socket.emit('updatePendingMessages', updatePendingStatus)
 	  
-					//socket.emit('getChatHistory', data)		
+					socket.emit('getGroupChatHistory', data)		
 				});
 
 				$(document).on('click','.msg-persistance',function(){
