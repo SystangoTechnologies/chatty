@@ -1,0 +1,1 @@
+Directory contains data-storage for redis.
