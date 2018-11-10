@@ -54,10 +54,12 @@ services:
     image: "redis:alpine"
     restart: always
     volumes:
-      - redis-data:/data
+      - data:/data
     ports:
       - "6379:6379"
     environment:
       - PORT=6379
     command: ["redis-server", "--appendonly", "yes"]
     hostname: redis
+volumes:
+  data:
