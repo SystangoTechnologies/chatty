@@ -229,10 +229,12 @@ export async function getChatHistory(app, data, currentUser) {
             })
         }
 
-         if(peerConversation.length){
-            let conversationState =  (peerConversation[0].user1_conversation_blocked || peerConversation[0].user2_conversation_blocked)? 'blocked' : 'active'
-            let blockButtonStatus = true
+        let conversationState = 'active'
+        let blockButtonStatus = true
 
+         if(peerConversation.length){
+            conversationState =  (peerConversation[0].user1_conversation_blocked || peerConversation[0].user2_conversation_blocked)? 'blocked' : 'active'
+            
             if(conversationState === 'blocked') {
                 if(peerConversation[0].user1 == currentUser){
                     blockButtonStatus = !peerConversation[0].user1_conversation_blocked
@@ -240,15 +242,15 @@ export async function getChatHistory(app, data, currentUser) {
                     blockButtonStatus = !peerConversation[0].user2_conversation_blocked
                 }
             }
+        }
 
-            historyMessages = {
-                state: conversationState,
-                user1_conversation_blocked: peerConversation[0].user1_conversation_blocked,
-                user2_conversation_blocked: peerConversation[0].user2_conversation_blocked,
-                blockButtonStatus: blockButtonStatus,
-                currentPage: page,
-                messages: peerConversation.reverse()
-            }
+        historyMessages = {
+            state: conversationState,
+            user1_conversation_blocked: (peerConversation[0])? peerConversation[0].user1_conversation_blocked : 0,
+            user2_conversation_blocked: (peerConversation[0])? peerConversation[0].user2_conversation_blocked : 0,
+            blockButtonStatus: blockButtonStatus,
+            currentPage: page,
+            messages: (peerConversation[0] && peerConversation[0]['Messages.id'])? peerConversation.reverse() : []
         }
          
         return historyMessages
