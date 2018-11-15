@@ -187,8 +187,7 @@ export async function getChatHistory(app, data, currentUser) {
         let page = (data.page)? data.page : 1 // page number
         offset = limit * (page - 1)
  
-        let peerConversation =  await db.Peer_conversation.findAll({
-            
+        let peerConversation =  await db.Peer_conversation.findAll({    
             where: {
                 user1: user1,
                 user2: user2,
@@ -217,23 +216,46 @@ export async function getChatHistory(app, data, currentUser) {
             raw: true
          })
 
-         let historyMessages
+        let historyMessages
+
+        if(!peerConversation.length){
+            peerConversation =  await db.Peer_conversation.findAll({    
+                where: {
+                    user1: user1,
+                    user2: user2,
+                    application: app
+                },
+                raw: true
+            })
+        }
 
          if(peerConversation.length){
+            let conversationState =  (peerConversation[0].user1_conversation_blocked || peerConversation[0].user2_conversation_blocked)? 'blocked' : 'active'
+            let blockButtonStatus = true
+
+            if(conversationState === 'blocked') {
+                if(peerConversation[0].user1 == currentUser){
+                    blockButtonStatus = !peerConversation[0].user1_conversation_blocked
+                } else {
+                    blockButtonStatus = !peerConversation[0].user2_conversation_blocked
+                }
+            }
+
             historyMessages = {
-                state: (peerConversation[0].user1_conversation_blocked || peerConversation[0].user2_conversation_blocked)? 'blocked' : 'active',
+                state: conversationState,
                 user1_conversation_blocked: peerConversation[0].user1_conversation_blocked,
                 user2_conversation_blocked: peerConversation[0].user2_conversation_blocked,
+                blockButtonStatus: blockButtonStatus,
                 currentPage: page,
                 messages: peerConversation.reverse()
-             }
-         }
+            }
+        }
          
-         return historyMessages
+        return historyMessages
          
-     } catch(err){
-         console.log(err)
-     }
+    } catch(err){
+        console.log(err)
+    }
 }
 
 export async function getBlockedUserList(app, user){
