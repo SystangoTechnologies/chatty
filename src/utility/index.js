@@ -264,13 +264,15 @@ export async function getBlockedUserList(app, user){
     try{
         user = user.toLowerCase()
 
-        let blockedUsers =  await db.Peer_conversation.findAll({
-            where: {
-                [db.Sequelize.Op.or]: [{user1: user}, {user2: user}],
-                application: app,
-                [db.Sequelize.Op.or]: [{user1_conversation_blocked: true}, {user2_conversation_blocked: true}]
-            }
-        })
+        // let blockedUsers =  await db.Peer_conversation.findAll({
+        //     where: {
+        //         [db.Sequelize.Op.or]: [{user1: user}, {user2: user}],
+        //         application: app,
+        //         [db.Sequelize.Op.or]: [{user1_conversation_blocked: true}, {user2_conversation_blocked: true}]
+        //     }
+        // })
+
+        let blockedUsers = await getBlockUserList(user, app)
 
         let users = []
         if(blockedUsers && blockedUsers.length>0) {
@@ -1283,6 +1285,20 @@ async function getlatestMessagesForGroupConversation(ids){
                 messagesMap.set(messages[element].group_conversation_id, messages[element])
             }
             resolve(messagesMap)
+        })
+    });
+}
+
+async function getBlockUserList(user, application){
+    return new Promise((resolve, reject) => {
+        db.sequelize.query("SELECT * \
+        FROM Peer_conversations WHERE \
+            (user1 = :user OR user2 = :user) \
+            AND (application = :application) \
+            AND (user1_conversation_blocked = 1 OR user2_conversation_blocked = 1)",
+            { replacements: { user: user, application: application }, type: db.sequelize.QueryTypes.SELECT }
+        ).then(list => {
+            resolve(list)
         })
     });
 }
