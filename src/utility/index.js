@@ -245,17 +245,20 @@ export async function getBlockedUserList(app, user){
                 [db.Sequelize.Op.or]: [{user1: user}, {user2: user}],
                 application: app,
                 [db.Sequelize.Op.or]: [{user1_conversation_blocked: true}, {user2_conversation_blocked: true}]
-                // blocked:{
-                //     [db.Sequelize.Op.notIn]: [user, ''],
-                // } 
             }
         })
 
         let users = []
         if(blockedUsers && blockedUsers.length>0) {
-            blockedUsers.map( conversation => users.push(conversation.dataValues.blocked))
+            blockedUsers.map(function (conversation) {
+                if(conversation.dataValues.user1 === user && conversation.dataValues.user1_conversation_blocked){
+                    users.push(conversation.dataValues.user2)
+                } else if(conversation.dataValues.user2_conversation_blocked) {
+                    users.push(conversation.dataValues.user1)
+               }
+          });
         }
-        return users;
+        return users
     } catch(err){
 
     }
@@ -520,7 +523,22 @@ export async function blockUser (app, user, data) {
                 application: app
             }
         })
+        
+        if(peerConversation.length && peerConversation[0]){
+            return true
+        }
 
+        // If peer converstation is not found create new conversation
+        peerConversation =  await db.Peer_conversation.create({
+            user1: user1,
+            user2: user2,
+            application: app,
+            encryption_key: Math.random().toString(36).replace('0.', ''),
+            user1_conversation_blocked: (user === user1)? true : false,
+            user2_conversation_blocked: (user === user2)? true : false,
+            user1_conversation_archived: false,
+            user2_conversation_archived: false
+        })
         return true
 
     } catch(err){
@@ -872,8 +890,6 @@ export async function getGroupDetails(app, user, groupId){
                 model: db.Group_Member
             }           
         })
-
-        
 
         let members = []        
 
