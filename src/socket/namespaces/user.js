@@ -780,8 +780,9 @@ var init = function (io) {
                 return
             }
         
-            let msg = await  utility.getGroupChatHistory(app, data, this.request.user)   
-            socket.emit('addGroupChatHistoryMessages', msg)
+            let msg = await utility.getGroupChatHistory(app, data, this.request.user)
+            let response = await formatGroupHistoryMessage(app, msg)
+            socket.emit('addGroupChatHistoryMessages', response)
         
             utility.changGroupMessageStatus(app, this.request.user, data.id)
         })
@@ -916,8 +917,26 @@ var init = function (io) {
         let getUserDetailsForGroup = async function (application, data) {
             for(let index in data.members) {
                 let userDetails = await io.redisUtility.fetchUserDetails(application, data.members[index].name)
-                data.members[index].publicName = (userDetails)? userDetails.publicName : data.members[index].name
-                data.members[index].displayPicture = (userDetails)? userDetails.displayPicture : ''         
+                data.members[index].senderPublicName = (userDetails)? userDetails.publicName : data.members[index].name
+                data.members[index].senderDisplayPicture = (userDetails)? userDetails.displayPicture : ''         
+            }
+            return data
+        }
+
+        let formatGroupHistoryMessage = async function (application, data) {
+            let usersMap = new Map()
+            for(let index in data.messages) {
+                // Get From local map
+                let userDetails = usersMap.get(data.messages[index].sender)
+
+                // If not found fetch from redis and store in local map
+                if(!userDetails){
+                    userDetails = await io.redisUtility.fetchUserDetails(application, data.messages[index].sender)
+                    usersMap.set(data.messages[index].sender, userDetails)
+                } 
+
+                data.messages[index].senderPublicName = (userDetails)? userDetails.publicName : data.messages[index].name
+                data.messages[index].senderDisplayPicture = (userDetails)? userDetails.displayPicture : ''         
             }
             return data
         }
