@@ -277,10 +277,10 @@ export async function getBlockedUserList(app, user){
         let users = []
         if(blockedUsers && blockedUsers.length>0) {
             blockedUsers.map(function (conversation) {
-                if(conversation.dataValues.user1 === user && conversation.dataValues.user1_conversation_blocked){
-                    users.push(conversation.dataValues.user2)
-                } else if(conversation.dataValues.user2_conversation_blocked) {
-                    users.push(conversation.dataValues.user1)
+                if(conversation.user1 === user && conversation.user1_conversation_blocked){
+                    users.push(conversation.user2)
+                } else if(conversation.user2_conversation_blocked) {
+                    users.push(conversation.user1)
                }
           });
         }
