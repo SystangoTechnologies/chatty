@@ -178,6 +178,7 @@ var init = function (io) {
                 data.blockedBy = this.request.user
                 data.event = 'userBlocked'
                 data.recipient = data.user
+                data.status = 'blocked'
         
                 socket.emit('userBlocked', data)
         
@@ -198,12 +199,13 @@ var init = function (io) {
             return
           }
     
-          let status = await  utility.unblockUser(app, this.request.user, data)
+          let conversation = await  utility.unblockUser(app, this.request.user, data)
     
-          if(status){
+          if(conversation){
             data.unblockedBy = this.request.user
             data.event = 'userUnblocked'
             data.recipient = data.user
+            data.status = (conversation.length && (conversation[0].user1_conversation_blocked || conversation[0].user2_conversation_blocked))?  'blocked' : 'active'
     
             socket.emit('userUnblocked', data)
     

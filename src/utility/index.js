@@ -279,7 +279,7 @@ export async function getBlockedUserList(app, user){
             blockedUsers.map(function (conversation) {
                 if(conversation.user1 === user && conversation.user1_conversation_blocked){
                     users.push(conversation.user2)
-                } else if(conversation.user2_conversation_blocked) {
+                } else if(conversation.user2 === user && conversation.user2_conversation_blocked) {
                     users.push(conversation.user1)
                }
           });
@@ -596,7 +596,7 @@ export async function unblockUser (app, user, data) {
             }
         }
 
-        let peerConversation =  await db.Peer_conversation.update(updateFields, {
+        let updateStatus =  await db.Peer_conversation.update(updateFields, {
             where: {
                 user1: user1,
                 user2: user2,
@@ -604,10 +604,19 @@ export async function unblockUser (app, user, data) {
             }
         })
 
-        return true
+        let peerConversation =  await db.Peer_conversation.findAll({
+            where: {
+                user1: user1,
+                user2: user2,
+                application: app
+            },
+            raw: true
+        })
+
+        return peerConversation
 
     } catch(err){
-
+        return false
     }
 }
 
