@@ -19,7 +19,9 @@ var init = function (io) {
                 let userData = {
                     'serverName': io.serverName,
                     'heartBeat': Date.now(),
-                    'status': 'offline'
+                    'status': 'offline',
+                    'publicName':  socket.request.publicName,
+                    'displayPicture': socket.request.displayPicture
                 }
         
                 // Update user from active user list
@@ -29,40 +31,49 @@ var init = function (io) {
                 io.localActiveUsersMap.delete(socket.request.user.toLowerCase() + '_' + app)
         
                 // Get all active users
-                let activeUsersName = await getActiveUsersName(app)
+                let activeUsers = await getActiveUsersName(app)
         
-                socket.emit('activeUsersList', activeUsersName)
-                socket.broadcast.to(app).emit('activeUsersList', activeUsersName)
+                socket.emit('activeUsersList', activeUsers)
+                socket.broadcast.to(app).emit('activeUsersList', activeUsers)
             }
         })
     
-        // Login or SignUp user
-        socket.on('login', async function (userName) {
+        /* Login or SignUp user
+            data = {
+                userName = '',
+                publicName = '',
+                displayPicture = ''
+            }
+        */
+        socket.on('login', async function (data) {
          
             // Adding user object to socket session
-            socket.request.user = userName.toLowerCase()
+            socket.request.user = data.userName.toLowerCase()
+            socket.request.publicName = (data.publicName)? data.publicName : data.userName.toLowerCase()
+            socket.request.displayPicture = (data.displayPicture)? data.displayPicture : ''
         
             let userData = {
                 'serverName': io.serverName,
                 'heartBeat': Date.now(),
                 'status': 'active',
-                'profile_pic': 'https://www.google.co.in/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png'
+                'publicName':  socket.request.publicName,
+                'displayPicture': socket.request.displayPicture
             }
         
             // Adding username and its last active time on redis cache
-            io.redisUtility.updateClientStatus(app, userName, userData)
+            io.redisUtility.updateClientStatus(app, socket.request.user, userData)
             
             // Adding user name to activeUserMap
-            io.localActiveUsersMap.set(userName.toLowerCase() + '_' + app, socket)
+            io.localActiveUsersMap.set(socket.request.user + '_' + app, socket)
         
             socket.join(app)
         
             socket.emit('loginsuccess')
         
-            let activeUsersName = await getActiveUsersName(app)
+            let activeUsers = await getActiveUsersName(app)
         
-            socket.emit('activeUsersList', activeUsersName)
-            socket.broadcast.to(app).emit('activeUsersList', activeUsersName)
+            socket.emit('activeUsersList', activeUsers)
+            socket.broadcast.to(app).emit('activeUsersList', activeUsers)
         })
     
          // Sends messages to clients
@@ -101,7 +112,8 @@ var init = function (io) {
 
             // Get all blocked users
             let blockedUsersName = await utility.getBlockedUserList(app, this.request.user)
-            socket.emit('blockedUsersList', blockedUsersName)
+            let userDetails = await  io.redisUtility.getUsersDetails(blockedUsersName)
+            socket.emit('blockedUsersList', userDetails)
         })
 
         // BroadCast messages to all users
@@ -112,6 +124,9 @@ var init = function (io) {
                 return
             }
 
+            data.senderPublicName = socket.request.publicName
+            data.senderDisplayPicture = socket.request.displayPicture
+            
             socket.broadcast.to(app).emit('broadCastToAllUsers', data)
         })
     
@@ -120,6 +135,8 @@ var init = function (io) {
             // Set username through with the message was sent (sender)
             data.sender = this.request.user
             data.event = 'addMessage'
+            data.senderPublicName = socket.request.publicName
+            data.senderDisplayPicture = socket.request.displayPicture
             
             sendMessage(app, data, false)
         })
@@ -134,6 +151,8 @@ var init = function (io) {
             // Set username through with the message was sent (sender)
             data.sender = this.request.user
             data.event = 'addMessage'
+            data.senderPublicName = socket.request.publicName
+            data.senderDisplayPicture = socket.request.displayPicture
         
             let message
         
@@ -179,6 +198,8 @@ var init = function (io) {
                 data.event = 'userBlocked'
                 data.recipient = data.user
                 data.status = 'blocked'
+                data.senderPublicName = socket.request.publicName
+                data.senderDisplayPicture = socket.request.displayPicture
         
                 socket.emit('userBlocked', data)
         
@@ -205,6 +226,8 @@ var init = function (io) {
             data.unblockedBy = this.request.user
             data.event = 'userUnblocked'
             data.recipient = data.user
+            data.senderPublicName = socket.request.publicName
+            data.senderDisplayPicture = socket.request.displayPicture
             data.status = (conversation.length && (conversation[0].user1_conversation_blocked || conversation[0].user2_conversation_blocked))?  'blocked' : 'active'
     
             socket.emit('userUnblocked', data)
@@ -242,7 +265,8 @@ var init = function (io) {
             }
             
             let data = await utility.getinboxMessages(app, this.request.user, page)
-            socket.emit('addInboxMessages', data)
+            let response = await mergeUserDetails(app, data, this.request.user)
+            socket.emit('addInboxMessages', response)
         })
     
         // send media files
@@ -261,6 +285,8 @@ var init = function (io) {
                 data: data.data,
                 created_at: new Date(),
                 application: app,
+                senderPublicName: socket.request.publicName,
+                senderDisplayPicture: socket.request.displayPicture,
                 clientGeneratedId: (data.clientGeneratedId)? data.clientGeneratedId : 'N/A'
             }
         
@@ -282,12 +308,14 @@ var init = function (io) {
                 sender: this.request.user,
                 recipient: data.recipient,
                 event: 'messageDeleted',
-                application: app
+                application: app,
+                senderPublicName: socket.request.publicName,
+                senderDisplayPicture: socket.request.displayPicture,
             }
         
             socket.emit('messageDeleted', deleteMessage)
         
-            emitToPeer(app, message, 'messageDeleted')
+            emitToPeer(app, deleteMessage, 'messageDeleted')
         })
     
         /*
@@ -791,14 +819,17 @@ var init = function (io) {
           return new Promise(function (resolve, reject) {
             // Get all active users
             io.redisCache.hgetall('OnlineUsers' + '_' + application, async function (_err, users) {
-              let activeUsersName = []
+              let activeUsers = []
               for (var element in users) {
-                if(JSON.parse(users[element]).status === 'active'){
-                  activeUsersName.push(element)
+                let user = JSON.parse(users[element])
+                if(user.status === 'active'){
+                  activeUsers.push({ 'user': element,
+                    'publicName': user.publicName,
+                    'displayPicture': user.displayPicture})
                 }           
               } // scope of for
               // Active users
-              resolve(activeUsersName)
+              resolve(activeUsers)
             })
           })
         }
@@ -808,16 +839,18 @@ var init = function (io) {
           return new Promise(function (resolve, reject) {
             // Get all active users
             io.redisCache.hgetall('OnlineUsers' + '_' + application, async function (_err, users) {
-              let activeUsersName = []
+              let activeUsers = []
               for (var element in users) {
-                  let user = {
-                      name: element,
-                      profile_pic: (JSON.parse(users[element]).profile_pic)? JSON.parse(users[element]).profile_pic : ''
-                  }
-                activeUsersName.push(user)
+                let user = JSON.parse(users[element])
+                let data = { 
+                    'user': element,
+                    'publicName': user.publicName,
+                    'displayPicture': user.displayPicture
+                } 
+                activeUsers.push(data)
               } // scope of for
               // Active users
-              resolve(activeUsersName)
+              resolve(activeUsers)
             })
           })
         }
@@ -833,12 +866,29 @@ var init = function (io) {
             recipient: data.recipient,
             type: data.type,
             data: data.data,
+            senderPublicName: data.senderPublicName,
+            senderDisplayPicture: data.senderDisplayPicture,
             created_at: new Date(),
             application: application,
             clientGeneratedId: (data.clientGeneratedId)? data.clientGeneratedId : 'N/A'
           }
     
           emitToPeer(app, message, data.event)
+        }
+
+        // Merges user details
+        let mergeUserDetails = async function (application, data, currentUser) {
+            for(let object in data) {
+                if(!data[object].group){
+                    let peer = (data[object].user1 == currentUser)? data[object].user2 : data[object].user1
+                    let userDetails = await io.redisUtility.fetchUserDetails(application, peer)
+                    data[object].peerPublicName = userDetails.publicName
+                    data[object].peerDisplayPicture = userDetails.displayPicture
+                }
+                
+            }
+
+            return data
         }
 
         //Emits messages to user

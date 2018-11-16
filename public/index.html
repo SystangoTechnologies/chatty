@@ -128,8 +128,14 @@
 				$('#login_signup_btn').click(function()
 				{
 					username = $('#username').val();
+					let data = {
+						userName: username,
+                		publicName: username + ' public name',
+                		displayPicture:'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQUFyQR7UPqP_K-LV8TU3phu2o0xztsEMy1VabejeU9VvxHoRLt'
+					}
+	
 					if(/^[a-z0-9]+$/.test(username)){
-						socket.emit('login', username);
+						socket.emit('login', data);
 					} else {
 						$('#login-failed').show();
 						setTimeout(function(){ $('#login-failed').hide(); }, 1000);
@@ -137,7 +143,12 @@
 				});
 
 				socket.on('loginRequired', function(){
-					socket.emit('login', username);
+					let data = {
+						userName: username,
+                		publicName: username + ' public name',
+                		displayPicture:'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQUFyQR7UPqP_K-LV8TU3phu2o0xztsEMy1VabejeU9VvxHoRLt'
+					}
+					socket.emit('login', data);
 				})
 
 				$('.create-group').click(function() {
@@ -199,9 +210,9 @@
 					$('.group-list').show();
 					$('.group-options').show();
 					let html = ''
-					for(var user of data) {
-						if (user != username ){
-							html +=  `<div class="active-user-box"><li  class="list-group-item list-group-item-action active-user-list" id="${user}">${user}</li></div>`;
+					for(var obj of data) {
+						if (obj.user != username ){
+							html +=  `<div class="active-user-box"><li  class="list-group-item list-group-item-action active-user-list" id="${obj.user}">${obj.publicName}</li></div>`;
 							}
 								
 							}
@@ -508,7 +519,7 @@
 					let data = {
 						peer: this.id,
 						noOfRecordsPerPage: 100,
-						page: 1
+						page: 2
 					}
 
 					let updatePendingStatus = {

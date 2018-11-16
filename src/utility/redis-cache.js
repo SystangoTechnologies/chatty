@@ -50,6 +50,30 @@ export function getGroupMembers (_app, _id) {
     });
 }
 
+// Gets the server's name of client
+export async function getUsersDetails (_app, _users) {
+    let users = []
+    for(let element in _users){
+        let userDetails =  await fetchUserDetails(_app, _users[element])
+        users.push(userDetails)
+    }
+    return users
+}
+
+// Gets the server's name of client
+export function fetchUserDetails (_app, _user) {  
+    return new Promise((resolve, reject) => {
+        redisClient.hget('OnlineUsers' + '_' + _app, _user.toLowerCase(), function (_err, obj) {
+            if(_err){
+                reject('')
+            }
+            if(obj){
+                resolve(JSON.parse(obj))
+            }
+        })
+    });
+}
+
 
 export async function init(_redis) {
     console.log('Init')
