@@ -35,7 +35,9 @@ var init = function (io) {
             type: data.type,
             data: data.data,
             created_at: new Date(),
-            application: app
+            application: app,
+            senderPublicName: (data.senderPublicName)? data.senderPublicName : data.sender,
+            senderDisplayPicture: (data.senderDisplayPicture)? data.senderDisplayPicture : '',
           }
     
           let connectedServerName = await io.redisUtility.getServerName(app, data.recipient)

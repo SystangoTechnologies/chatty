@@ -338,6 +338,8 @@ var init = function (io) {
             }
 
             data.owner = this.request.user.toLowerCase()
+            data.senderPublicName = socket.request.publicName
+            data.senderDisplayPicture = socket.request.displayPicture
 
             let group = await utility.createGroup(app, this.request.user, data)
             
@@ -359,6 +361,7 @@ var init = function (io) {
             }
 
             let groups = await utility.getAllGroups(app, this.request.user)
+    
             if(groups){
                 socket.emit('allGroups', groups)
             }
@@ -366,13 +369,14 @@ var init = function (io) {
 
         /* GetAllGroups */
         socket.on('getAllGroups', async function () {
-             // If users is not logged in
-             if(!this.request.user){
+            // If users is not logged in
+            if(!this.request.user){
                 socket.emit('loginRequired', '')
                 return
             }
 
             let groups = await utility.getAllGroups(app, this.request.user)
+
             if(groups){
                 socket.emit('allGroups', groups)
             }           
@@ -388,9 +392,10 @@ var init = function (io) {
             if(!this.request.user){
                socket.emit('loginRequired', '')
                return
-           }
+            }
 
-           let response = await utility.getGroupDetails(app, this.request.user, data.id)
+            let groupDetails = await utility.getGroupDetails(app, this.request.user, data.id)
+            let response = await getUserDetailsForGroup(app, groupDetails)
 
             if(response){
                 socket.emit('groupDetails', response)
@@ -412,6 +417,8 @@ var init = function (io) {
             }
 
             data.activity = 'editGroup'
+            data.senderPublicName = socket.request.publicName
+            data.senderDisplayPicture = socket.request.displayPicture
 
             let groupUpdated = await utility.editGroup(app, this.request.user, data)
 
@@ -426,10 +433,10 @@ var init = function (io) {
                 // Emit group created to all the users
                 if(groupMembers && groupMembers.length > 0){
 
-                    let response = await utility.getGroupDetails(app, this.request.user, data.id)
+                    let groupDetails = await utility.getGroupDetails(app, this.request.user, data.id)
+                    let response = await getUserDetailsForGroup(app, groupDetails)
 
                     if(response){
-
                         emitMessgaeToUsers(groupMembers, response, 'groupUpdated')
                     }
 
@@ -460,8 +467,9 @@ var init = function (io) {
             }
 
             data.status = 'success'
-
             data.activity = 'addMemberToGroup'
+            data.senderPublicName = socket.request.publicName
+            data.senderDisplayPicture = socket.request.displayPicture
 
            let member = await utility.addMemberToGroup(app, this.request.user, data)
 
@@ -478,7 +486,8 @@ var init = function (io) {
                     io.redisUtility.updateGroup(app, data.id, groupMembers.join(','))
 
                     //emitMessgaeToUsers(groupMembers, data, 'newMemberToGroup')
-                    let response = await utility.getGroupDetails(app, this.request.user, data.id)
+                    let groupDetails = await utility.getGroupDetails(app, this.request.user, data.id)
+                    let response = await getUserDetailsForGroup(app, groupDetails)
 
                     if(response){
                         response.status = 'success'
@@ -512,8 +521,9 @@ var init = function (io) {
             }
 
             data.status = 'success'
-
             data.activity = 'addMemberToGroup'
+            data.senderPublicName = socket.request.publicName
+            data.senderDisplayPicture = socket.request.displayPicture
 
             let member = await utility.removeMemberFromGroup(app, this.request.user, data)
 
@@ -524,7 +534,8 @@ var init = function (io) {
                 if(groupMembers && groupMembers.length > 0){
                     // emitMessgaeToUsers(groupMembers, data, 'memberRemovedFromGroup')
 
-                    let response = await utility.getGroupDetails(app, this.request.user, data.id)
+                    let groupDetails = await utility.getGroupDetails(app, this.request.user, data.id)
+                    let response = await getUserDetailsForGroup(app, groupDetails)
 
                     if(response){
                         response.status = 'success'
@@ -560,8 +571,9 @@ var init = function (io) {
             }
 
             data.status = 'success'
-
             data.activity = 'leaveGroup'
+            data.senderPublicName = socket.request.publicName
+            data.senderDisplayPicture = socket.request.displayPicture
 
             let member = await utility.leaveGroup(app, this.request.user, data)
 
@@ -575,8 +587,9 @@ var init = function (io) {
 
                 // Emit group created to all the users
                 if(groupMembers && groupMembers.length > 0){
-                // emitMessgaeToUsers(groupMembers, data, 'leftGroup')
-                let response = await utility.getGroupDetails(app, this.request.user, data.id)
+                    // emitMessgaeToUsers(groupMembers, data, 'leftGroup')
+                    let groupDetails = await utility.getGroupDetails(app, this.request.user, data.id)
+                    let response = await getUserDetailsForGroup(app, groupDetails)
 
                     if(response){
                         response.status = 'success'
@@ -606,43 +619,45 @@ var init = function (io) {
             }
         */
         socket.on('changeMemberRole', async function (data) {
-        // If users is not logged in
-        if(!this.request.user){
-            socket.emit('loginRequired', '')
-            return
-        }
-
-        data.status = 'success'
-
-        data.activity = 'changeMemberRole'
-
-        let member = await utility.changeMemberRole(app, this.request.user, data)
-
-        if(member){
-            data.status = 'success'
-            let groupMembers = await io.redisUtility.getGroupMembers(app, data.id)
-
-            // Emit group created to all the users
-            if(groupMembers && groupMembers.length > 0){
-
-                // emitMessgaeToUsers(groupMembers, data, 'updatedMemberRole')
-                let response = await utility.getGroupDetails(app, this.request.user, data.id)
-
-                if(response){
-
-                    response.status = 'success'
-
-                    emitMessgaeToUsers(groupMembers, response, 'groupUpdated')
-                }
+            // If users is not logged in
+            if(!this.request.user){
+                socket.emit('loginRequired', '')
+                return
             }
-        } else {
-            data.status = 'failed'
 
-            data.error = 'Member not found/Unauthorized'
-        }
-        
-        socket.emit('groupUpdateStatus', data)  
-    })
+            data.status = 'success'
+            data.activity = 'changeMemberRole'
+            data.senderPublicName = socket.request.publicName
+            data.senderDisplayPicture = socket.request.displayPicture
+
+            let member = await utility.changeMemberRole(app, this.request.user, data)
+
+            if(member){
+                data.status = 'success'
+                let groupMembers = await io.redisUtility.getGroupMembers(app, data.id)
+
+                // Emit group created to all the users
+                if(groupMembers && groupMembers.length > 0){
+
+                    // emitMessgaeToUsers(groupMembers, data, 'updatedMemberRole')
+                    let groupDetails = await utility.getGroupDetails(app, this.request.user, data.id)
+                    let response = await getUserDetailsForGroup(app, groupDetails)
+
+                    if(response){
+
+                        response.status = 'success'
+
+                        emitMessgaeToUsers(groupMembers, response, 'groupUpdated')
+                    }
+                }
+            } else {
+                data.status = 'failed'
+
+                data.error = 'Member not found/Unauthorized'
+            }
+            
+            socket.emit('groupUpdateStatus', data)  
+        })
         
         /* Delete Group
             data = {
@@ -651,34 +666,37 @@ var init = function (io) {
         */
         socket.on('deleteGroup', async function (data) {
             
-          // If users is not logged in
-          if(!this.request.user){
-            socket.emit('loginRequired', '')
-            return
-          }
-    
-          let status = await utility.deleteGroup(app, this.request.user, data)
-    
-          if(status){
-            data.status = 'success'
-            let groupMembers = await io.redisUtility.getGroupMembers(app, data.id)
-            io.redisUtility.deleteGroup(app, data.id)
-             socket.emit('groupDeleted', data)
-
-            // Emit group created to all the users
-            if(groupMembers && groupMembers.length > 0){
-                
-                groupMembers.splice( groupMembers.indexOf(this.request.user), 1 )
-
-                emitMessgaeToUsers(groupMembers, data, 'groupDeleted')
+            // If users is not logged in
+            if(!this.request.user){
+                socket.emit('loginRequired', '')
+                return
             }
-          } else {
-            data.status = 'failed'
 
-            data.error = 'Not authorized'
+            data.senderPublicName = socket.request.publicName
+            data.senderDisplayPicture = socket.request.displayPicture
+        
+            let status = await utility.deleteGroup(app, this.request.user, data)
+        
+            if(status){
+                data.status = 'success'
+                let groupMembers = await io.redisUtility.getGroupMembers(app, data.id)
+                io.redisUtility.deleteGroup(app, data.id)
+                socket.emit('groupDeleted', data)
 
-            socket.emit('groupDeleted', data)  
-          }
+                // Emit group created to all the users
+                if(groupMembers && groupMembers.length > 0){
+                    
+                    groupMembers.splice( groupMembers.indexOf(this.request.user), 1 )
+
+                    emitMessgaeToUsers(groupMembers, data, 'groupDeleted')
+                }
+            } else {
+                data.status = 'failed'
+
+                data.error = 'Not authorized'
+
+                socket.emit('groupDeleted', data)  
+            }
         })
 
         /* Persist Group message and sends messages to clients
@@ -698,6 +716,8 @@ var init = function (io) {
             // Set username through with the message was sent (sender)
             data.sender = this.request.user
             data.event = 'addGroupMessage'
+            data.senderPublicName = socket.request.publicName
+            data.senderDisplayPicture = socket.request.displayPicture
         
             let message
 
@@ -728,6 +748,8 @@ var init = function (io) {
             // Set username through with the message was sent (sender)
             data.sender = this.request.user
             data.event = 'addGroupMessage'
+            data.senderPublicName = socket.request.publicName
+            data.senderDisplayPicture = socket.request.displayPicture
         
             let message
 
@@ -802,7 +824,9 @@ var init = function (io) {
                 group: data.id,
                 event: 'groupMessageDeleted',
                 application: app,
-                status: 'success'
+                status: 'success',
+                senderPublicName: socket.request.publicName,
+                senderDisplayPicture: socket.request.displayPicture
             }
 
             let groupMembers = await io.redisUtility.getGroupMembers(app, data.id)
@@ -878,16 +902,23 @@ var init = function (io) {
 
         // Merges user details
         let mergeUserDetails = async function (application, data, currentUser) {
-            for(let object in data) {
-                if(!data[object].group){
-                    let peer = (data[object].user1 == currentUser)? data[object].user2 : data[object].user1
+            for(let index in data) {
+                if(!data[index].group){
+                    let peer = (data[index].user1 == currentUser)? data[index].user2 : data[index].user1
                     let userDetails = await io.redisUtility.fetchUserDetails(application, peer)
-                    data[object].peerPublicName = userDetails.publicName
-                    data[object].peerDisplayPicture = userDetails.displayPicture
-                }
-                
+                    data[index].peerPublicName = userDetails.publicName
+                    data[index].peerDisplayPicture = userDetails.displayPicture
+                }                
             }
+            return data
+        }
 
+        let getUserDetailsForGroup = async function (application, data) {
+            for(let index in data.members) {
+                let userDetails = await io.redisUtility.fetchUserDetails(application, data.members[index].name)
+                data.members[index].publicName = (userDetails)? userDetails.publicName : data.members[index].name
+                data.members[index].displayPicture = (userDetails)? userDetails.displayPicture : ''         
+            }
             return data
         }
 

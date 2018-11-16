@@ -67,9 +67,7 @@ export function fetchUserDetails (_app, _user) {
             if(_err){
                 reject('')
             }
-            if(obj){
-                resolve(JSON.parse(obj))
-            }
+            resolve(JSON.parse(obj))
         })
     });
 }
