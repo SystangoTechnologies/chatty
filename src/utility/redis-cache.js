@@ -55,7 +55,13 @@ export async function getUsersDetails (_app, _users) {
     let users = []
     for(let element in _users){
         let userDetails =  await fetchUserDetails(_app, _users[element])
-        users.push(userDetails)
+        if(userDetails){
+            delete userDetails["heartBeat"]
+            delete userDetails["serverName"]
+            delete userDetails["status"]
+            userDetails.username = _users[element]
+            users.push(userDetails)
+        }       
     }
     return users
 }

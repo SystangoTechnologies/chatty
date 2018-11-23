@@ -112,7 +112,7 @@ var init = function (io) {
 
             // Get all blocked users
             let blockedUsersName = await utility.getBlockedUserList(app, this.request.user)
-            let userDetails = await  io.redisUtility.getUsersDetails(blockedUsersName)
+            let userDetails = await io.redisUtility.getUsersDetails(app, blockedUsersName)
             socket.emit('blockedUsersList', userDetails)
         })
 
@@ -420,9 +420,9 @@ var init = function (io) {
             data.senderPublicName = socket.request.publicName
             data.senderDisplayPicture = socket.request.displayPicture
 
-            let groupUpdated = await utility.editGroup(app, this.request.user, data)
+            let updateStatus = await utility.editGroup(app, this.request.user, data)
 
-            if(groupUpdated) {
+            if(updateStatus === 'success') {
                 let groupMembers = await io.redisUtility.getGroupMembers(app, data.id)
                 // groupMembers.splice( groupMembers.indexOf(this.request.user), 1 )
 
@@ -447,7 +447,8 @@ var init = function (io) {
             } else {
                 data.status = 'failed'
 
-                data.error = 'Not authorized'
+                //Gets the error form groupUpdated
+                data.error = updateStatus
             }
             
             socket.emit('groupUpdateStatus', data)
@@ -471,9 +472,9 @@ var init = function (io) {
             data.senderPublicName = socket.request.publicName
             data.senderDisplayPicture = socket.request.displayPicture
 
-           let member = await utility.addMemberToGroup(app, this.request.user, data)
+           let updateStatus = await utility.addMemberToGroup(app, this.request.user, data)
 
-           if(member) {
+           if(updateStatus === 'success') {
                 let groupMembers = await io.redisUtility.getGroupMembers(app, data.id)
 
                 for(let index in data.members){
@@ -500,7 +501,7 @@ var init = function (io) {
            } else {
                 data.status = 'failed'
 
-                data.error = 'User Already Present'
+                data.error = updateStatus
            }
 
            socket.emit('groupUpdateStatus', data)       
@@ -525,9 +526,9 @@ var init = function (io) {
             data.senderPublicName = socket.request.publicName
             data.senderDisplayPicture = socket.request.displayPicture
 
-            let member = await utility.removeMemberFromGroup(app, this.request.user, data)
+            let updateStatus = await utility.removeMemberFromGroup(app, this.request.user, data)
 
-            if(member){
+            if(updateStatus === 'success'){
                 let groupMembers = await io.redisUtility.getGroupMembers(app, data.id)
 
                 // Emit group created to all the users
@@ -537,22 +538,27 @@ var init = function (io) {
                     let groupDetails = await utility.getGroupDetails(app, this.request.user, data.id)
                     let response = await getUserDetailsForGroup(app, groupDetails)
 
+                    groupMembers.splice( groupMembers.indexOf(data.memberName.toLowerCase()), 1 )
+
+                    io.redisUtility.updateGroup(app, data.id, groupMembers.join(','))
+
                     if(response){
                         response.status = 'success'
                         emitMessgaeToUsers(groupMembers, response, 'groupUpdated')
                     }
 
-                    socket.emit('groupUpdated', response)
+                    data.recipient = data.memberName.toLowerCase()
+                    data.groupName = groupDetails.name
+                    emitToPeer(app, data, 'removedFromGroup')
 
-                    groupMembers.splice( groupMembers.indexOf(data.memberName.toLowerCase()), 1 )
+                    // socket.emit('groupUpdated', response)
 
-                    io.redisUtility.updateGroup(app, data.id, groupMembers.join(','))
                 }
 
             } else {
                 data.status = 'failed'
 
-                data.error = 'User Not Found'
+                data.error = updateStatus
             }
             
             socket.emit('groupUpdateStatus', data)
@@ -575,9 +581,9 @@ var init = function (io) {
             data.senderPublicName = socket.request.publicName
             data.senderDisplayPicture = socket.request.displayPicture
 
-            let member = await utility.leaveGroup(app, this.request.user, data)
+            let updateStatus = await utility.leaveGroup(app, this.request.user, data)
 
-            if(member){
+            if(updateStatus){
                 let groupMembers = await io.redisUtility.getGroupMembers(app, data.id)
 
                 groupMembers.splice( groupMembers.indexOf(this.request.user), 1 );
@@ -597,6 +603,7 @@ var init = function (io) {
                     }
 
                     // socket.emit('groupUpdated', response)
+                    socket.emit('leftGroup', response)
 
                     io.redisUtility.updateGroup(app, data.id, groupMembers.join(','))
                 }
@@ -630,9 +637,9 @@ var init = function (io) {
             data.senderPublicName = socket.request.publicName
             data.senderDisplayPicture = socket.request.displayPicture
 
-            let member = await utility.changeMemberRole(app, this.request.user, data)
+            let updateStatus = await utility.changeMemberRole(app, this.request.user, data)
 
-            if(member){
+            if(updateStatus === 'success'){
                 data.status = 'success'
                 let groupMembers = await io.redisUtility.getGroupMembers(app, data.id)
 
@@ -653,7 +660,7 @@ var init = function (io) {
             } else {
                 data.status = 'failed'
 
-                data.error = 'Member not found/Unauthorized'
+                data.error = updateStatus
             }
             
             socket.emit('groupUpdateStatus', data)  
@@ -781,9 +788,12 @@ var init = function (io) {
             }
         
             let msg = await utility.getGroupChatHistory(app, data, this.request.user)
-            let response = await formatGroupHistoryMessage(app, msg)
+
+            let response
+            if(msg){
+                response = await formatGroupHistoryMessage(app, msg)
+            }
             socket.emit('addGroupChatHistoryMessages', response)
-        
             utility.changGroupMessageStatus(app, this.request.user, data.id)
         })
 
@@ -850,7 +860,9 @@ var init = function (io) {
                 if(user.status === 'active'){
                   activeUsers.push({ 'user': element,
                     'publicName': user.publicName,
-                    'displayPicture': user.displayPicture})
+                    'displayPicture': user.displayPicture,
+                    'status': 'active'
+                })
                 }           
               } // scope of for
               // Active users
@@ -864,18 +876,18 @@ var init = function (io) {
           return new Promise(function (resolve, reject) {
             // Get all active users
             io.redisCache.hgetall('OnlineUsers' + '_' + application, async function (_err, users) {
-              let activeUsers = []
-              for (var element in users) {
-                let user = JSON.parse(users[element])
-                let data = { 
-                    'user': element,
-                    'publicName': user.publicName,
-                    'displayPicture': user.displayPicture
-                } 
-                activeUsers.push(data)
-              } // scope of for
-              // Active users
-              resolve(activeUsers)
+                let activeUsers = []
+                for (var element in users) {
+                    let user = JSON.parse(users[element])
+                    activeUsers.push({ 
+                        'user': element,
+                        'publicName': user.publicName,
+                        'displayPicture': user.displayPicture,
+                        'status': user.status
+                    })
+                } // scope of for
+                // Active users
+                resolve(activeUsers)
             })
           })
         }
@@ -908,7 +920,7 @@ var init = function (io) {
                     let peer = (data[index].user1 == currentUser)? data[index].user2 : data[index].user1
                     let userDetails = await io.redisUtility.fetchUserDetails(application, peer)
                     data[index].peerPublicName = userDetails.publicName
-                    data[index].peerDisplayPicture = userDetails.displayPicture
+                    data[index].displayPicture = userDetails.displayPicture
                 }                
             }
             return data

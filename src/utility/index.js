@@ -1037,14 +1037,14 @@ export async function addMemberToGroup(app, user, data){
 
             db.Group_Member.bulkCreate(members)
 
-            return true
+            return 'success'
         }
 
-        return false        
+        return 'Not authorized'  
 
     } catch(err){
         if(err.name == 'SequelizeUniqueConstraintError'){
-            return false
+            return 'Duplicate Member'
         }
         // Wip
         console.log(err)
@@ -1069,14 +1069,14 @@ export async function editGroup(app, user, data){
                 }
             })
 
-            return true
+            return 'success'
         }
 
-        return false       
+        return 'Not authorized'  
 
     } catch(err){
         if(err.name == 'SequelizeUniqueConstraintError'){
-            return false
+            return 'Duplicate Group'
         }
         // Wip
         console.log(err)
@@ -1090,17 +1090,19 @@ export async function removeMemberFromGroup(app, user, data){
 
         let member = ''
 
-        if(group){
+        if(group.length){
             member = await db.Group_Member.destroy({
                 where: {
                     name: data.memberName.toLowerCase(),
                     group_conversation_id: group[0].dataValues.id
                 }
             })
-        }
 
-        return member
-
+            return 'success'
+        }        
+    
+        return 'Not authorized'
+    
     } catch(err){
         // Wip
         console.log(err)
@@ -1143,9 +1145,10 @@ export async function changeMemberRole(app, user, data){
                     group_conversation_id: group[0].dataValues.id
                 }
             })
-        }
-
-        return member
+            return 'success'
+        }        
+    
+        return 'Not authorized'
 
     } catch(err){
         // Wip
@@ -1233,7 +1236,7 @@ async function groupAndSortResults(user, conversationIds, peerConversationMap, g
             user1_conversation_archived: (tempConversation.user1_conversation_archived)? tempConversation.user1_conversation_archived : '',
             user2_conversation_archived: (tempConversation.user2_conversation_archived)? tempConversation.user2_conversation_archived : '',
             pendingCount: (pending) ? pending.pendingCount: 0,
-            display_picture: (tempConversation.display_picture)? tempConversation.display_picture : '',
+            displayPicture: (tempConversation.display_picture)? tempConversation.display_picture : '',
             created_at: (latestMsg)? latestMsg.created_at : (tempConversation.name)? tempConversation.created_at : '',
             updated_at: (latestMsg)? latestMsg.updated_at : (tempConversation.name)? tempConversation.updated_at : '',
             'Messages.created_at': (latestMsg)? latestMsg.created_at : (tempConversation.name)? tempConversation.created_at : '',
