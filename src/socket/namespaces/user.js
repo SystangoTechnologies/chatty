@@ -20,6 +20,7 @@ var init = function (io) {
                     'serverName': io.serverName,
                     'heartBeat': Date.now(),
                     'status': 'offline',
+                    'authToken': '',
                     'publicName':  socket.request.publicName,
                     'displayPicture': socket.request.displayPicture
                 }
@@ -51,11 +52,14 @@ var init = function (io) {
             socket.request.user = data.userName.toLowerCase()
             socket.request.publicName = (data.publicName)? data.publicName : data.userName.toLowerCase()
             socket.request.displayPicture = (data.displayPicture)? data.displayPicture : ''
+
+            await sessionCleanUp(app, socket.request.user, data.authToken, socket.id) 
         
             let userData = {
                 'serverName': io.serverName,
                 'heartBeat': Date.now(),
                 'status': 'active',
+                'authToken': (data.authToken)? data.authToken : '',
                 'publicName':  socket.request.publicName,
                 'displayPicture': socket.request.displayPicture
             }
@@ -951,6 +955,40 @@ var init = function (io) {
                 data.messages[index].senderDisplayPicture = (userDetails)? userDetails.displayPicture : ''         
             }
             return data
+        }
+
+        let sessionCleanUp = async function (application, user, authToken, socketId) {
+            let usersMap = new Map()
+
+                // Get user details from redis
+                let  userDetails = await io.redisUtility.fetchUserDetails(application, user)
+                if(userDetails && (authToken != userDetails.authToken) && userDetails.authToken !== ''){
+
+                    let data = {
+                        recipient: user,
+                        socketId: socketId,
+                        event: 'sessionExpired',
+                        message: 'Other device has logged in'
+                    }
+
+                    // Check if recipient is connected to the current server
+                    if (userDetails.serverName === io.serverName) {
+
+                        let tempSocket = io.localActiveUsersMap.get(user + '_' + application)
+
+                        if (tempSocket && tempSocket.id != socketId) {
+                            // emit message directly to client
+                            tempSocket.emit('sessionExpired', data)
+                            tempSocket.disconnect()
+                            io.localActiveUsersMap.delete(data.recipient + '_' + data.application)
+                        }
+                    } else {
+                        // publish message on the redis channel to specific server
+                        data.application = application
+                        io.redisPublishChannel.publish(userDetails.serverName, JSON.stringify(data))
+                    }
+                }
+            
         }
 
         //Emits messages to user

@@ -33,7 +33,13 @@ var ioEvents = function (io) {
             // Send Message to single user
             let socket = io.localActiveUsersMap.get(msg.recipient + '_' + msg.application)
             if (socket) {
-                if(msg.event){
+
+                if(msg.event === 'sessionExpired'){
+                    if(socket.id != msg.socketId){
+                        socket.disconnect()
+                        io.localActiveUsersMap.delete(msg.recipient + '_' + msg.application)
+                    }
+                } else if(msg.event){
                     socket.emit(msg.event, msg)
                 } else{
                     socket.emit('addMessage', msg)
